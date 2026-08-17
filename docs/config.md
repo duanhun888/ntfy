@@ -503,7 +503,7 @@ Once configured, you can upload attachments via PUT.
 
 By default, attachments are stored **for only 3 hours**. The main reason for this is to avoid legal issues
 and such when hosting user controlled content. Typically, this is more than enough time for the user (or the auto download
-feature) to download the file. You can increase this time by [purchasing ntfy Pro](https://ntfy.sh/app) via the web app.
+feature) to download the file. You can increase this time by raising `attachment-expiry-duration` in the server config.
 
 The following config options are relevant to attachments:
 
@@ -574,11 +574,6 @@ be encoded as `YmxhY%2BmxhYmxhC` (note the `%2B`), so the URL would be `s3://ACC
 
 If you experience upload failures with HTTP/2 stream errors (common with DigitalOcean Spaces and some other S3-compatible providers),
 add `&disable_http2=true` to force HTTP/1.1 connections.
-
-!!! info
-    ntfy.sh is hosted and sponsored by DigitalOcean. I can highly recommend their public cloud offering. It's been rock solid
-    for 4 years. They offer an S3-compatible storage for $5/month and 250 GB of storage, with 1 TiB of bandwidth. 
-    Also, if you **use [this referral link](https://m.do.co/c/442b929528db), you can get $200 credit**.
 
 For AWS S3, the IAM user needs the following permissions on the bucket:
 

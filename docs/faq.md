@@ -89,15 +89,9 @@ could do hundreds of requests per seconds (which you cannot), it would take many
 
 For ntfy.sh, there's even a fail2ban in place which will ban your IP pretty quickly.
 
-## Where can I donate?
-I have just very recently started accepting donations via [GitHub Sponsors](https://github.com/sponsors/binwiederhier).
-I would be humbled if you helped me carry the server and developer account costs. Even small donations are very much
-appreciated.
-
 ## Can I email you? Can I DM you on Discord/Matrix?
 For community support, please use the public channels listed on the [contact page](contact.md). I generally 
-**do not respond to direct messages** about ntfy, unless you are paying for a [ntfy Pro](https://ntfy.sh/#pricing) 
-plan (see [paid support](contact.md#paid-support)), or you are inquiring about business 
+**do not respond to direct messages** about ntfy unless you are inquiring about business 
 opportunities (see [other inquiries](contact.md#other-inquiries)).
 
 I am sorry, but answering individual questions about ntfy on a 1-on-1 basis is not scalable. Answering your questions 

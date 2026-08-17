@@ -20,19 +20,6 @@ For general questions, feature discussions, and community help, please use one o
     Answering questions in public channels benefits the entire community. Other users can learn from the 
     discussion, and answers can be referenced later. This is much more scalable than 1-on-1 support.
 
-### Paid support
-
-If you are subscribed to a [ntfy Pro](https://ntfy.sh/#pricing) plan, you are entitled to priority support 
-via the following channels:
-
-| Channel               | Contact                                             | Description                              |
-|-----------------------|-----------------------------------------------------|------------------------------------------|
-| **General Support**   | [support@mail.ntfy.sh](mailto:support@mail.ntfy.sh) | Direct email support for Pro subscribers |
-| **Billing Inquiries** | [billing@mail.ntfy.sh](mailto:billing@mail.ntfy.sh) | Inquire about billing issues             |
-| **Discord/Matrix**    | Mention your Pro status                             | Priority responses in community channels |
-
-Please include your ntfy.sh username when contacting support so we can verify your subscription status.
-
 ## Security issues
 
 If you discover a security vulnerability, please report it responsibly via [security@mail.ntfy.sh](mailto:security@mail.ntfy.sh). See also: [SECURITY.md](https://github.com/binwiederhier/ntfy/blob/main/SECURITY.md).

@@ -1,16 +1,3 @@
-<div align="center" markdown="1">
-<sup>Special thanks to:</sup>
-<br>
-<br>
-<a href="https://go.warp.dev/ntfy">
-  <img alt="Warp sponsorship" width="400" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/refs/heads/main/Github/Sponsor/Warp-Github-LG-02.png">
-</a>
-
-### [Warp, built for coding with multiple AI agents.](https://go.warp.dev/ntfy)
-[Available for MacOS, Linux, & Windows](https://go.warp.dev/ntfy)<br>
-</div>
-<hr>
-
 ![ntfy](web/public/static/images/ntfy.png)
 
 # ntfy.sh | Send push notifications to your phone or desktop via PUT/POST
@@ -47,12 +34,6 @@ as well as an [open source iOS app](https://github.com/binwiederhier/ntfy-ios) a
   <img src=".github/images/screenshot-phone-detail.jpg" height="180">
   <img src=".github/images/screenshot-phone-notification.jpg" height="180">
 </p>
-
-## [ntfy Pro](https://ntfy.sh/app) 💸 🎉
-I now offer paid plans for [ntfy.sh](https://ntfy.sh/) if you don't want to self-host, or you want to support the development of 
-ntfy (→ [Purchase via web app](https://ntfy.sh/app)). You can **buy a plan for as low as $5/month**.
-You can also donate via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), and [Liberapay](https://liberapay.com/ntfy).
-I would be very humbled by your sponsorship. ❤️ 
 
 ## **[Documentation](https://ntfy.sh/docs/)**
 

@@ -3429,8 +3429,7 @@ the ntfy app installed on their phone.
 **Phone numbers have to be previously verified** (via the [web app](https://ntfy.sh/account)), so this feature is 
 **only available to authenticated users** (no anonymous phone calls). To forward a message as a voice call, pass a phone
 number in the `X-Call` header (or its alias: `Call`), prefixed with a plus sign and the country code, e.g. `+12223334444`. 
-You may also simply pass `yes` as a value to pick the first of your verified phone numbers. 
-On ntfy.sh, this feature is only supported to [ntfy Pro](https://ntfy.sh/app) plans.
+You may also simply pass `yes` as a value to pick the first of your verified phone numbers.
 
 <figure markdown>
   ![phone number verification](static/img/web-phone-verify.png)
