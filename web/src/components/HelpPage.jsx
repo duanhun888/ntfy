@@ -2,9 +2,9 @@ import * as React from "react";
 import { useEffect } from "react";
 import { Box, Divider, Link, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
 import hideSplash from "../app/splash";
 import routes from "./routes";
-import { Link as RouterLink } from "react-router-dom";
 
 const Section = ({ title, children }) => (
   <Box sx={{ mb: 3 }}>
@@ -55,12 +55,18 @@ const HelpPage = () => {
         </Typography>
         <Stack spacing={0.5}>
           <Typography variant="body2">
-            · <Link component={RouterLink} to={routes.groups}>{t("nav_button_groups")}</Link>
+            ·{" "}
+            <Link component={RouterLink} to={routes.groups}>
+              {t("nav_button_groups")}
+            </Link>
             {" — "}
             {t("help_link_groups")}
           </Typography>
           <Typography variant="body2">
-            · <Link component={RouterLink} to={routes.notifications}>{t("nav_button_all_notifications")}</Link>
+            ·{" "}
+            <Link component={RouterLink} to={routes.notifications}>
+              {t("nav_button_all_notifications")}
+            </Link>
             {" — "}
             {t("help_link_notifications")}
           </Typography>

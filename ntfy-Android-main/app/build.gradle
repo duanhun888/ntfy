@@ -17,8 +17,8 @@ android {
         minSdkVersion 26
         targetSdkVersion 36
 
-        versionCode 64
-        versionName "1.25.3"
+        versionCode 65
+        versionName "1.25.4"
 
         // App update check (GitHub Releases). Tag: 1.2.3 or v1.2.3; Android asset: *.apk (prefer fdroid/release).
         buildConfigField 'String', 'UPDATE_API_BASE', '"https://api.github.com"'

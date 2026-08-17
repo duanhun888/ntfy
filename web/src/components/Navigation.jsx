@@ -34,7 +34,7 @@ import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlin
 import ArticleIcon from "@mui/icons-material/Article";
 import { Trans, useTranslation } from "react-i18next";
 import CelebrationIcon from "@mui/icons-material/Celebration";
-import { openUrl, topicDisplayName, topicUrl } from "../app/utils";
+import { topicDisplayName, topicUrl } from "../app/utils";
 import routes from "./routes";
 import { ConnectionState } from "../app/Connection";
 import subscriptionManager from "../app/SubscriptionManager";
@@ -143,10 +143,7 @@ const NavList = (props) => {
         {showNotificationIOSInstallRequired && <NotificationIOSInstallRequiredAlert />}
         {alertVisible && <Divider />}
         {session.exists() && (
-          <ListItemButton
-            onClick={() => navigate(routes.groups)}
-            selected={location.pathname.startsWith(routes.groups)}
-          >
+          <ListItemButton onClick={() => navigate(routes.groups)} selected={location.pathname.startsWith(routes.groups)}>
             <ListItemIcon>
               <GroupsIcon />
             </ListItemIcon>
