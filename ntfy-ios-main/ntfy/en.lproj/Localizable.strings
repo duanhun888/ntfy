@@ -1,0 +1,165 @@
+/* Tab bar */
+"tab_groups" = "My groups";
+"tab_notifications" = "Notifications";
+"tab_settings" = "Settings";
+
+/* Common */
+"cancel" = "Cancel";
+"done" = "Done";
+"save" = "Save";
+"delete" = "Delete";
+
+/* Settings */
+"settings_title" = "Settings";
+"settings_notifications_header" = "Notifications";
+"settings_general_header" = "General";
+"settings_appearance_header" = "Appearance";
+"settings_about_header" = "About";
+"settings_about_check_update" = "Check for updates";
+"update_dialog_title" = "Update available";
+"update_dialog_message" = "Current: %@\nNew: %@\n\n%@";
+"update_now" = "Update";
+"update_later" = "Later";
+"update_up_to_date" = "You are on the latest version";
+"update_check_failed" = "Could not check for updates. Configure the release repository or try again later.";
+"update_no_notes" = "No release notes.";
+
+"settings_advanced_header" = "Advanced";
+"settings_users_header" = "Manage users";
+"settings_users_footer" = "Add or remove accounts for protected topics. All topics on a server share the same account.";
+"settings_default_server" = "Default server";
+"settings_default_server_footer" = "When creating groups or subscribing, this server is used as the default.";
+"settings_default_server_dialog_footer" = "When subscribing to new topics, this server is used as the default. For a self-hosted server, configure upstream-base-url or push may be delayed.";
+
+/* Users / accounts */
+"user_add" = "Add user";
+"user_add_title" = "Add user";
+"user_edit_title" = "Edit user";
+"user_delete" = "Delete user";
+"user_username" = "Username";
+"user_password" = "Password";
+"user_password_edit" = "Password (leave blank to keep)";
+"user_base_url" = "Server URL, e.g. https://sendmsg.xhsnw.com";
+"user_footer_add" = "Add a server account here. All topics on that server will use this account.";
+"user_footer_edit" = "Edit the username or password for %@. All topics on this server share this account. Leave the password blank to keep it unchanged.";
+"user_empty_tip" = "Tip: add a server account to create groups and access protected topics.";
+"user_login_required_title" = "Login required";
+"user_login_required_footer" = "This topic requires a username and password. The account is stored on device and reused for other topics on this server.";
+"groups_api_unauthorized" = "Login required. Add an account for this server in Settings → Manage users.";
+"groups_api_bad_url" = "Invalid server URL";
+"groups_api_http" = "Unexpected response %d";
+"settings_mute" = "Mute notifications";
+"settings_min_priority" = "Minimum priority";
+"settings_auto_delete" = "Auto-delete";
+"settings_dark_mode" = "Dark mode";
+"settings_language" = "Language";
+"settings_backup" = "Backup & restore";
+"settings_backup_export" = "Export backup";
+"settings_backup_import" = "Restore backup";
+"settings_backup_export_ok" = "Backup exported";
+"settings_backup_import_ok" = "Backup restored";
+"settings_backup_invalid" = "Invalid backup file";
+"settings_custom_headers" = "Custom headers";
+"settings_custom_headers_footer" = "Extra HTTP headers added to publish and poll requests.";
+"settings_custom_headers_add" = "Add header";
+"settings_logs" = "Logs";
+"settings_logs_record" = "Record logs";
+"settings_logs_export" = "Export logs";
+"settings_logs_clear" = "Clear logs";
+"settings_connection_alert" = "Connection alert";
+"settings_display_name" = "Display name";
+"subscription_settings" = "Topic settings";
+
+"mute_show_all" = "Show all";
+"mute_30m" = "For 30 minutes";
+"mute_1h" = "For 1 hour";
+"mute_2h" = "For 2 hours";
+"mute_8h" = "For 8 hours";
+"mute_tomorrow" = "Until tomorrow";
+"mute_forever" = "Forever";
+"mute_until_format" = "Muted until %@";
+
+"priority_use_global" = "Same as global setting";
+"priority_any" = "Any priority";
+"priority_low_plus" = "Low and higher";
+"priority_default_plus" = "Default and higher";
+"priority_high_plus" = "High and higher";
+"priority_max_only" = "Only max priority";
+"priority_min" = "Min";
+"priority_low" = "Low";
+"priority_default" = "Default";
+"priority_high" = "High";
+"priority_max" = "Max";
+
+"auto_delete_use_global" = "Same as global setting";
+"auto_delete_never" = "Never";
+"auto_delete_1d" = "After 1 day";
+"auto_delete_3d" = "After 3 days";
+"auto_delete_1w" = "After 1 week";
+"auto_delete_1m" = "After 1 month";
+"auto_delete_3m" = "After 3 months";
+
+"dark_mode_system" = "System";
+"dark_mode_light" = "Light";
+"dark_mode_dark" = "Dark";
+
+"connection_alert_off" = "Off";
+"connection_alert_3m" = "After 3 minutes";
+"connection_alert_10m" = "After 10 minutes";
+"connection_alert_1h" = "After 1 hour";
+
+/* Publish */
+"publish_title" = "Publish";
+"publish_send" = "Send";
+"publish_message" = "Message";
+"publish_chip_title" = "Title";
+"publish_chip_tags" = "Tags";
+"publish_chip_priority" = "Priority";
+"publish_chip_markdown" = "Markdown";
+"publish_chip_click" = "Click URL";
+"publish_chip_delay" = "Delay";
+"publish_chip_email" = "Email";
+"publish_chip_call" = "Phone call";
+"publish_chip_attach_url" = "Attach URL";
+"publish_attach_file" = "Attach file";
+"publish_clear_attachment" = "Remove attachment";
+"publish_title_placeholder" = "Title";
+"publish_tags_placeholder" = "tag1,tag2,warning";
+"publish_delay_placeholder" = "30m, 9am, Monday 8am, …";
+
+"send_test_notification" = "Send test notification";
+"clear_all_notifications" = "Clear all notifications";
+"unsubscribe" = "Unsubscribe";
+
+"share_select_topic" = "Choose a topic to publish to";
+
+/* Groups (aligned with Android Chinese-style home) */
+"groups_title" = "My groups";
+"groups_brand" = "Group Alerts";
+"groups_empty_title" = "No groups yet";
+"groups_empty_subtitle" = "Create a group, add a bot webhook, and deliver alerts to everyone in the group.";
+"groups_steps_header" = "Getting started";
+"groups_step1_title" = "Create a group";
+"groups_step1_body" = "Tap the button below and enter a group name.";
+"groups_step2_title" = "Open bots / webhook";
+"groups_step2_body" = "Enter the group → menu → Bots / Webhook.";
+"groups_step3_title" = "Create a bot";
+"groups_step3_body" = "Create a bot and copy the webhook URL.";
+"groups_step4_title" = "Send notifications";
+"groups_step4_body" = "POST to that URL; group members receive the alert.";
+"groups_create_action" = "Create group";
+"groups_create_title" = "Create group";
+"groups_create_footer" = "Add a username/password for this server in Settings → Manage users first.";
+"groups_name_placeholder" = "Group name";
+"groups_tip_account" = "Tip: add your server account in Settings → Manage users first.";
+"groups_tip_need_account" = "Add a server account in Settings → Manage users before creating a group.";
+"groups_need_account" = "Please add a server account first";
+"groups_members_count" = "%d members";
+
+/* Subscribe (account-related) */
+"subscribe_title" = "Add subscription";
+"subscribe_action" = "Subscribe";
+"subscribe_topic_placeholder" = "Topic name, e.g. alerts";
+"subscribe_topic_footer" = "Topics may not be password-protected, so choose a name that is hard to guess. Once subscribed, you can PUT/POST notifications.";
+"subscribe_use_another" = "Use another server";
+"subscribe_another_footer" = "For instant delivery from a self-hosted server, set upstream-base-url in the server config, otherwise messages may be delayed.";

@@ -1,0 +1,16 @@
+var config = {
+  base_url: "https://sendmsg.xhsnw.com",
+  app_root: "/",
+  enable_login: true,
+  require_login: true,
+  enable_signup: false,
+  enable_payments: false,
+  enable_reservations: false,
+  enable_emails: false,
+  enable_calls: false,
+  enable_web_push: false,
+  billing_contact: "",
+  web_push_public_key: "",
+  disallowed_topics: [],
+  config_hash: "ops-prod",
+};

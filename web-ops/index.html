@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ntfy 运维</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="theme-color" content="#2F6F5E" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- Must load before the app module so window.config exists -->
+    <script src="/config.js"></script>
+    <link rel="icon" type="image/png" href="/static/images/favicon.ico" />
+    <link rel="stylesheet" href="/static/css/app.css" type="text/css" />
+    <link rel="stylesheet" href="/static/css/fonts.css" type="text/css" />
+    <style>
+      html { background-color: #f4f6f4; }
+      #splash {
+        position: fixed; inset: 0; z-index: 200000;
+        display: flex; align-items: center; justify-content: center;
+        background-color: #f4f6f4;
+      }
+      #splash.splash-hidden { opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <noscript>ntfy 运维台需要启用 JavaScript。</noscript>
+    <div id="splash" aria-hidden="true"><span>运维</span></div>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
+</html>

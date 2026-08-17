@@ -1,0 +1,1088 @@
+package io.heckel.ntfy.ui
+
+import android.Manifest
+import android.app.AlarmManager
+import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+import android.text.method.LinkMovementMethod
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.view.ActionMode
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.text.HtmlCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updatePadding
+import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import io.heckel.ntfy.BuildConfig
+import io.heckel.ntfy.R
+import io.heckel.ntfy.app.Application
+import io.heckel.ntfy.db.Repository
+import io.heckel.ntfy.db.Subscription
+import io.heckel.ntfy.firebase.FirebaseMessenger
+import io.heckel.ntfy.msg.ApiService
+import io.heckel.ntfy.msg.DownloadManager
+import io.heckel.ntfy.msg.DownloadType
+import io.heckel.ntfy.msg.NotificationDispatcher
+import io.heckel.ntfy.msg.Poller
+import io.heckel.ntfy.service.SubscriberService
+import io.heckel.ntfy.service.SubscriberServiceManager
+import io.heckel.ntfy.util.Log
+import io.heckel.ntfy.util.SUBSCRIPTION_ICONS
+import io.heckel.ntfy.util.dangerButton
+import io.heckel.ntfy.util.displayName
+import io.heckel.ntfy.util.formatDateShort
+import io.heckel.ntfy.util.isDarkThemeOn
+import io.heckel.ntfy.util.isIgnoringBatteryOptimizations
+import io.heckel.ntfy.util.isNetworkAvailable
+import io.heckel.ntfy.util.maybeSplitTopicUrl
+import io.heckel.ntfy.util.randomSubscriptionId
+import io.heckel.ntfy.util.shortUrl
+import io.heckel.ntfy.util.topicShortUrl
+import io.heckel.ntfy.work.DeleteWorker
+import io.heckel.ntfy.work.PollWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
+import java.util.Date
+import java.util.concurrent.TimeUnit
+import androidx.core.content.FileProvider
+import androidx.core.view.size
+import androidx.core.view.get
+import androidx.core.net.toUri
+
+class MainActivity : AppCompatActivity(), AddFragment.SubscribeListener, NotificationFragment.NotificationSettingsListener {
+    private val viewModel by viewModels<SubscriptionsViewModel> {
+        SubscriptionsViewModelFactory((application as Application).repository)
+    }
+    private val repository by lazy { (application as Application).repository }
+    private val api by lazy { ApiService(this) }
+    private val poller by lazy { Poller(api, repository) }
+    private val messenger = FirebaseMessenger()
+
+    // UI elements
+    private lateinit var menu: Menu
+    private lateinit var mainList: RecyclerView
+    private lateinit var mainListContainer: SwipeRefreshLayout
+    private lateinit var adapter: MainAdapter
+
+    // Other stuff
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var workManager: WorkManager? = null // Context-dependent
+    private var dispatcher: NotificationDispatcher? = null // Context-dependent
+    private var appBaseUrl: String? = null // Context-dependent
+
+    // Action mode stuff
+    private var actionMode: ActionMode? = null
+    private val actionModeCallback = object : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            actionMode = mode
+            if (mode != null) {
+                mode.menuInflater.inflate(R.menu.menu_main_action_mode, menu)
+                mode.title = "1" // One item selected
+            }
+            return true
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?) = false
+
+        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem): Boolean {
+            return when (item.itemId) {
+                R.id.main_action_mode_delete -> {
+                    onMultiDeleteClick()
+                    true
+                }
+                else -> false
+            }
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode?) {
+            endActionModeAndRedraw()
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(io.heckel.ntfy.app.AppLocale.wrap(newBase))
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+        if (!io.heckel.ntfy.app.AppSession.isLoggedIn(this)) {
+            io.heckel.ntfy.app.AppSession.goLogin(this)
+            return
+        }
+        setContentView(R.layout.activity_main)
+
+        Log.init(this) // Init logs in all entry points
+        Log.d(TAG, "Create $this")
+
+        // Dependencies that depend on Context
+        workManager = WorkManager.getInstance(this)
+        dispatcher = NotificationDispatcher(this, repository)
+        appBaseUrl = getString(R.string.app_base_url)
+
+        // Action bar
+        val toolbarLayout = findViewById<AppBarLayout>(R.id.app_bar_drawer)
+        val dynamicColors = repository.getDynamicColorsEnabled()
+        val darkMode = isDarkThemeOn(this)
+        val statusBarColor = Colors.statusBarNormal(this, dynamicColors, darkMode)
+        val toolbarTextColor = Colors.toolbarTextColor(this, dynamicColors, darkMode)
+        toolbarLayout.setBackgroundColor(statusBarColor)
+        
+        val toolbar = toolbarLayout.findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbar)
+        toolbar.setTitleTextColor(toolbarTextColor)
+        toolbar.setNavigationIconTint(toolbarTextColor)
+        toolbar.overflowIcon?.setTint(toolbarTextColor)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        val titleBar = layoutInflater.inflate(R.layout.view_main_toolbar_title, toolbar, false)
+        titleBar.findViewById<TextView>(R.id.main_toolbar_title_groups).setTextColor(toolbarTextColor)
+        val friendsLink = titleBar.findViewById<TextView>(R.id.main_toolbar_title_friends)
+        friendsLink.setTextColor(toolbarTextColor)
+        friendsLink.setOnClickListener {
+            startActivity(Intent(this, FriendsActivity::class.java))
+        }
+        toolbar.addView(titleBar)
+
+        // Set system status bar appearance
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars =
+            Colors.shouldUseLightStatusBar(dynamicColors, darkMode)
+
+        // Swipe to refresh
+        mainListContainer = findViewById(R.id.main_subscriptions_list_container)
+        mainListContainer.setOnRefreshListener { refreshAllSubscriptions() }
+        mainListContainer.setColorSchemeColors(Colors.swipeToRefreshColor(this))
+
+        // Update main list based on viewModel (& its datasource/livedata)
+        val noEntries: View = findViewById(R.id.main_no_subscriptions)
+        val onSubscriptionClick = { s: Subscription -> onSubscriptionItemClick(s) }
+        val onSubscriptionLongClick = { s: Subscription -> onSubscriptionItemLongClick(s) }
+
+        mainList = findViewById(R.id.main_subscriptions_list)
+        adapter = MainAdapter(
+            repository,
+            onSubscriptionClick,
+            onSubscriptionLongClick,
+            ResourcesCompat.getDrawable(resources, R.drawable.ic_circle, theme)!!.apply {
+                setTint(Colors.primary(this@MainActivity))
+            },
+            Colors.onPrimary(this)
+        )
+        mainList.adapter = adapter
+        
+        // Apply window insets to ensure content is not covered by navigation bar
+        mainList.clipToPadding = false
+        ViewCompat.setOnApplyWindowInsetsListener(mainList) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updatePadding(bottom = systemBars.bottom)
+            insets
+        }
+
+        viewModel.list().observe(this) {
+            it?.let { subscriptions ->
+                // Update main list
+                adapter.submitList(subscriptions as MutableList<Subscription>)
+                if (it.isEmpty()) {
+                    mainListContainer.visibility = View.GONE
+                    noEntries.visibility = View.VISIBLE
+                } else {
+                    mainListContainer.visibility = View.VISIBLE
+                    noEntries.visibility = View.GONE
+                }
+                showHideCreateGroupMenuItem(!it.isEmpty())
+
+                // Add scrub terms to log (in case it gets exported)
+                subscriptions.forEach { s ->
+                    Log.addScrubTerm(shortUrl(s.baseUrl), Log.TermType.Domain)
+                    Log.addScrubTerm(s.topic)
+                }
+
+                // Update battery banner + WebSocket banner + websocket reconnect banner
+                showHideBatteryBanner(subscriptions)
+                showHideWebSocketBanner(subscriptions)
+                showHideWebSocketReconnectBanner()
+            }
+        }
+
+        // Add scrub terms to log (in case it gets exported) // FIXME this should be in Log.getFormatted
+        repository.getUsersLiveData().observe(this) {
+            it?.let { users ->
+                users.forEach { u ->
+                    Log.addScrubTerm(shortUrl(u.baseUrl), Log.TermType.Domain)
+                    Log.addScrubTerm(u.username, Log.TermType.Username)
+                    Log.addScrubTerm(u.password, Log.TermType.Password)
+                }
+            }
+        }
+
+        // Scrub terms for last topics // FIXME this should be in Log.getFormatted
+        repository.getLastShareTopics().forEach { topicUrl ->
+            maybeSplitTopicUrl(topicUrl)?.let {
+                Log.addScrubTerm(shortUrl(it.first), Log.TermType.Domain)
+                Log.addScrubTerm(shortUrl(it.second), Log.TermType.Term)
+            }
+        }
+
+        // React to changes in instant delivery setting
+        viewModel.listIdsWithInstantStatus().observe(this) {
+            SubscriberServiceManager.refresh(this)
+        }
+
+        // Observe connection details and update menu item visibility
+        repository.getConnectionDetailsLiveData().observe(this) { details ->
+            showHideConnectionErrorMenuItem(details)
+        }
+
+        // Battery banner
+        val batteryBanner = findViewById<View>(R.id.main_banner_battery) // Banner visibility is toggled in onResume()
+        val dontAskAgainButton = findViewById<Button>(R.id.main_banner_battery_dontaskagain)
+        val askLaterButton = findViewById<Button>(R.id.main_banner_battery_ask_later)
+        val fixNowButton = findViewById<Button>(R.id.main_banner_battery_fix_now)
+        dontAskAgainButton.setOnClickListener {
+            batteryBanner.visibility = View.GONE
+            repository.setBatteryOptimizationsRemindTime(Repository.BATTERY_OPTIMIZATIONS_REMIND_TIME_NEVER)
+        }
+        askLaterButton.setOnClickListener {
+            batteryBanner.visibility = View.GONE
+            repository.setBatteryOptimizationsRemindTime(System.currentTimeMillis() + ONE_DAY_MILLIS)
+        }
+        fixNowButton.setOnClickListener {
+            try {
+                Log.d(TAG, "package:$packageName".toUri().toString())
+                startActivity(
+                    Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        "package:$packageName".toUri()
+                    )
+                )
+            } catch (_: ActivityNotFoundException) {
+                try {
+                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                } catch (_: ActivityNotFoundException) {
+                    startActivity(Intent(Settings.ACTION_SETTINGS))
+                }
+            }
+            // Hide, at least for now
+            val batteryBanner = findViewById<View>(R.id.main_banner_battery)
+            batteryBanner.visibility = View.GONE
+        }
+
+        // WebSocket banner
+        val wsBanner = findViewById<View>(R.id.main_banner_websocket) // Banner visibility is toggled in onResume()
+        val wsText = findViewById<TextView>(R.id.main_banner_websocket_text)
+        val wsDismissButton = findViewById<Button>(R.id.main_banner_websocket_dontaskagain)
+        val wsRemindButton = findViewById<Button>(R.id.main_banner_websocket_remind_later)
+        val wsEnableButton = findViewById<Button>(R.id.main_banner_websocket_enable)
+        wsText.movementMethod = LinkMovementMethod.getInstance() // Make links clickable
+        wsDismissButton.setOnClickListener {
+            wsBanner.visibility = View.GONE
+            repository.setWebSocketRemindTime(Repository.WEBSOCKET_REMIND_TIME_NEVER)
+        }
+        wsRemindButton.setOnClickListener {
+            wsBanner.visibility = View.GONE
+            repository.setWebSocketRemindTime(System.currentTimeMillis() + ONE_DAY_MILLIS)
+        }
+        wsEnableButton.setOnClickListener {
+            repository.setConnectionProtocol(Repository.CONNECTION_PROTOCOL_WS)
+            SubscriberServiceManager(this).refresh()
+            wsBanner.visibility = View.GONE
+
+            // Maybe show WebSocketReconnectBanner
+            viewModel.list().observe(this) {
+                it?.let { subscriptions ->
+                    showHideWebSocketReconnectBanner()
+                }
+            }
+        }
+
+        // WebSocket Reconnect banner
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val wsReconnectBanner = findViewById<View>(R.id.main_banner_websocket_reconnect)
+            val wsReconnectText = findViewById<TextView>(R.id.main_banner_websocket_reconnect_text)
+            val wsReconnectDismissButton = findViewById<Button>(R.id.main_banner_websocket_reconnect_dontaskagain)
+            val wsReconnectRemindButton = findViewById<Button>(R.id.main_banner_websocket_reconnect_remind_later)
+            val wsReconnectEnableButton = findViewById<Button>(R.id.main_banner_websocket_reconnect_enable)
+            wsReconnectText.movementMethod = LinkMovementMethod.getInstance() // Make links clickable
+            wsReconnectDismissButton.setOnClickListener {
+                wsReconnectBanner.visibility = View.GONE
+                repository.setWebSocketReconnectRemindTime(Repository.WEBSOCKET_RECONNECT_REMIND_TIME_NEVER)
+            }
+            wsReconnectRemindButton.setOnClickListener {
+                wsReconnectBanner.visibility = View.GONE
+                repository.setWebSocketReconnectRemindTime(System.currentTimeMillis() + ONE_DAY_MILLIS)
+            }
+            wsReconnectEnableButton.setOnClickListener {
+                startActivity(Intent(ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+            }
+        }
+
+        // Network state banner
+        showHideNoNetworkBanner()
+        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                runOnUiThread { showHideNoNetworkBanner() }
+            }
+            override fun onLost(network: Network) {
+                runOnUiThread { showHideNoNetworkBanner() }
+            }
+        }
+        connectivityManager.registerDefaultNetworkCallback(networkCallback!!)
+
+        // Empty-state tip (login required) — always show
+        val howToLink = findViewById<TextView>(R.id.main_how_to_link)
+        howToLink.isVisible = true
+
+        findViewById<View>(R.id.main_empty_create_group).setOnClickListener {
+            onSubscribeButtonClick()
+        }
+
+        // Create notification channels right away, so we can configure them immediately after installing the app
+        dispatcher?.init()
+
+        // Subscribe to control Firebase channel (so we can re-start the foreground service if it dies)
+        messenger.subscribe(ApiService.CONTROL_TOPIC)
+
+        // Darrkkkk mode
+        AppCompatDelegate.setDefaultNightMode(repository.getDarkMode())
+
+        // Background things
+        schedulePeriodicPollWorker()
+        schedulePeriodicServiceRestartWorker()
+        schedulePeriodicDeleteWorker()
+
+        // Permissions
+        maybeRequestNotificationPermission()
+
+        // Check GitHub/Gitea Releases for a newer APK (throttled)
+        AppUpdateUi.check(this, this, manual = false)
+
+        // FIXME 2026-05-04: Remove this migration after 1 month
+        migrateSubscriptionIconsFromCache()
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        // Android 13 (SDK 33) requires that we ask for permission to post notifications
+        // https://developer.android.com/develop/ui/views/notifications/notification-permission
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        showHideNotificationMenuItems()
+        showHideConnectionErrorMenuItem(repository.getConnectionDetails())
+        showHideNoNetworkBanner()
+        redrawList()
+        syncRemoteGroups()
+        syncFriendChats()
+    }
+
+    private fun syncFriendChats() {
+        if (!io.heckel.ntfy.app.AppSession.isLoggedIn(this)) {
+            return
+        }
+        val baseUrl = io.heckel.ntfy.app.AppSession.serverUrl(this, repository)
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val user = repository.getUser(baseUrl) ?: return@launch
+                val friends = io.heckel.ntfy.msg.FriendsApi(this@MainActivity).listFriends(baseUrl, user)
+                var added = false
+                friends.forEach { friend ->
+                    val topic = friend.safeTopic()
+                    if (topic.isBlank()) return@forEach
+                    val existing = repository.getSubscription(baseUrl, topic)
+                    val displayName = friend.safeUsername()
+                    if (existing == null) {
+                        val subscription = Subscription(
+                            id = randomSubscriptionId(),
+                            baseUrl = baseUrl,
+                            topic = topic,
+                            instant = true,
+                            dedicatedChannels = false,
+                            mutedUntil = 0,
+                            minPriority = Repository.MIN_PRIORITY_USE_GLOBAL,
+                            autoDelete = Repository.AUTO_DELETE_USE_GLOBAL,
+                            insistent = Repository.INSISTENT_MAX_PRIORITY_USE_GLOBAL,
+                            lastNotificationId = null,
+                            icon = null,
+                            upAppId = null,
+                            upConnectorToken = null,
+                            displayName = displayName,
+                            totalCount = 0,
+                            newCount = 0,
+                            lastActive = Date().time / 1000
+                        )
+                        repository.addSubscription(subscription)
+                        added = true
+                        try {
+                            poller.poll(subscription)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Poll after friend sync failed: ${e.message}", e)
+                        }
+                    } else if (existing.displayName.isNullOrBlank() && displayName.isNotBlank()) {
+                        repository.updateSubscription(existing.copy(displayName = displayName))
+                    }
+                }
+                if (added) {
+                    SubscriberServiceManager.refresh(this@MainActivity)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Friend chat sync failed: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun syncRemoteGroups() {
+        if (!io.heckel.ntfy.app.AppSession.isLoggedIn(this)) {
+            return
+        }
+        val baseUrl = io.heckel.ntfy.app.AppSession.serverUrl(this, repository)
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val user = repository.getUser(baseUrl) ?: return@launch
+                val groups = io.heckel.ntfy.msg.GroupsApi(this@MainActivity).listGroups(baseUrl, user)
+                val prefs = getSharedPreferences(PREFS_GROUPS, Context.MODE_PRIVATE).edit()
+                var added = false
+                groups.forEach { group ->
+                    prefs.putString(groupPrefKey(baseUrl, group.topic), group.id)
+                    val existing = repository.getSubscription(baseUrl, group.topic)
+                    if (existing == null) {
+                        val subscription = Subscription(
+                            id = randomSubscriptionId(),
+                            baseUrl = baseUrl,
+                            topic = group.topic,
+                            instant = true,
+                            dedicatedChannels = false,
+                            mutedUntil = 0,
+                            minPriority = Repository.MIN_PRIORITY_USE_GLOBAL,
+                            autoDelete = Repository.AUTO_DELETE_USE_GLOBAL,
+                            insistent = Repository.INSISTENT_MAX_PRIORITY_USE_GLOBAL,
+                            lastNotificationId = null,
+                            icon = null,
+                            upAppId = null,
+                            upConnectorToken = null,
+                            displayName = group.name.ifBlank { null },
+                            totalCount = 0,
+                            newCount = 0,
+                            lastActive = Date().time / 1000
+                        )
+                        repository.addSubscription(subscription)
+                        Log.d(TAG, "Synced remote group ${group.id} topic=${group.topic}")
+                        added = true
+                        try {
+                            poller.poll(subscription)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Poll after group sync failed: ${e.message}", e)
+                        }
+                    } else if (existing.displayName.isNullOrBlank() && group.name.isNotBlank()) {
+                        repository.updateSubscription(existing.copy(displayName = group.name))
+                    }
+                }
+                prefs.apply()
+                if (baseUrl == appBaseUrl) {
+                    groups.forEach { messenger.subscribe(it.topic) }
+                }
+                if (added) {
+                    SubscriberServiceManager.refresh(this@MainActivity)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Group sync failed: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun showHideBatteryBanner(subscriptions: List<Subscription>) {
+        // Only relevant once the user has instant-delivery groups; otherwise the empty
+        // homepage looks broken / alarming for no actionable reason.
+        val hasInstantSubscriptions = subscriptions.any { it.instant }
+        val batteryRemindTimeReached = repository.getBatteryOptimizationsRemindTime() < System.currentTimeMillis()
+        val ignoringOptimizations = isIgnoringBatteryOptimizations(this@MainActivity)
+        val showBanner = hasInstantSubscriptions && batteryRemindTimeReached && !ignoringOptimizations
+        val batteryBanner = findViewById<View>(R.id.main_banner_battery)
+        batteryBanner.visibility = if (showBanner) View.VISIBLE else View.GONE
+        Log.d(TAG, "Battery: ignoringOptimizations=$ignoringOptimizations instant=$hasInstantSubscriptions remindReached=$batteryRemindTimeReached show=$showBanner")
+    }
+
+    private fun showHideWebSocketBanner(subscriptions: List<Subscription>) {
+        val hasSelfHostedSubscriptions = subscriptions.count { it.baseUrl != appBaseUrl } > 0
+        val usingWebSockets = repository.getConnectionProtocol() == Repository.CONNECTION_PROTOCOL_WS
+        val wsRemindTimeReached = repository.getWebSocketRemindTime() < System.currentTimeMillis()
+        val showBanner = hasSelfHostedSubscriptions && wsRemindTimeReached && !usingWebSockets
+        val wsBanner = findViewById<View>(R.id.main_banner_websocket)
+        if (showBanner) {
+            wsBanner.visibility = View.VISIBLE
+            if (!BuildConfig.PAYMENT_LINKS_AVAILABLE) {
+                // Hide links that lead to payments, see https://github.com/binwiederhier/ntfy/issues/1463
+                // This is a big fat hack, but I have to release this quickly ...
+                val wsBannerMainText = findViewById<TextView>(R.id.main_banner_websocket_text)
+                val raw = getString(R.string.main_banner_websocket_text)
+                val unlinked = raw.replace(Regex("</?a[^>]*>"), "")
+                wsBannerMainText.text = HtmlCompat.fromHtml(unlinked, HtmlCompat.FROM_HTML_MODE_LEGACY)
+            }
+        } else {
+            wsBanner.visibility = View.GONE
+        }
+    }
+
+    private fun showHideWebSocketReconnectBanner() {
+        val wsReconnectBanner = findViewById<View>(R.id.main_banner_websocket_reconnect)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val usingWebSockets = repository.getConnectionProtocol() == Repository.CONNECTION_PROTOCOL_WS
+            val wsReconnectRemindTimeReached = repository.getWebSocketReconnectRemindTime() < System.currentTimeMillis()
+            val canScheduleExactAlarms = (getSystemService(ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+            val showBanner = wsReconnectRemindTimeReached && usingWebSockets && !canScheduleExactAlarms
+            Log.d(TAG, "wsReconnectRemindTimeReached: ${wsReconnectRemindTimeReached}, usingWebSockets: ${usingWebSockets}, canScheduleExactAlarms: ${canScheduleExactAlarms}")
+            wsReconnectBanner.visibility = if (showBanner) View.VISIBLE else View.GONE
+        } else {
+            wsReconnectBanner.visibility = View.GONE
+        }
+    }
+
+    private fun showHideNoNetworkBanner() {
+        val banner = findViewById<View>(R.id.main_banner_no_network)
+        banner.visibility = if (isNetworkAvailable(this)) View.GONE else View.VISIBLE
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister network callback: ${e.message}", e)
+        }
+        networkCallback = null
+    }
+
+    private fun schedulePeriodicPollWorker() {
+        val workerVersion = repository.getPollWorkerVersion()
+        val workPolicy = if (workerVersion == PollWorker.VERSION) {
+            Log.d(TAG, "Poll worker version matches: choosing KEEP as existing work policy")
+            ExistingPeriodicWorkPolicy.KEEP
+        } else {
+            Log.d(TAG, "Poll worker version DOES NOT MATCH: choosing REPLACE as existing work policy")
+            repository.setPollWorkerVersion(PollWorker.VERSION)
+            ExistingPeriodicWorkPolicy.REPLACE
+        }
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val work = PeriodicWorkRequestBuilder<PollWorker>(POLL_WORKER_INTERVAL_MINUTES, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .addTag(PollWorker.TAG)
+            .addTag(PollWorker.WORK_NAME_PERIODIC_ALL)
+            .build()
+        Log.d(TAG, "Poll worker: Scheduling period work every $POLL_WORKER_INTERVAL_MINUTES minutes")
+        workManager!!.enqueueUniquePeriodicWork(PollWorker.WORK_NAME_PERIODIC_ALL, workPolicy, work)
+    }
+
+    private fun schedulePeriodicDeleteWorker() {
+        val workerVersion = repository.getDeleteWorkerVersion()
+        val workPolicy = if (workerVersion == DeleteWorker.VERSION) {
+            Log.d(TAG, "Delete worker version matches: choosing KEEP as existing work policy")
+            ExistingPeriodicWorkPolicy.KEEP
+        } else {
+            Log.d(TAG, "Delete worker version DOES NOT MATCH: choosing REPLACE as existing work policy")
+            repository.setDeleteWorkerVersion(DeleteWorker.VERSION)
+            ExistingPeriodicWorkPolicy.REPLACE
+        }
+        val work = PeriodicWorkRequestBuilder<DeleteWorker>(DELETE_WORKER_INTERVAL_MINUTES, TimeUnit.MINUTES)
+            .addTag(DeleteWorker.TAG)
+            .addTag(DeleteWorker.WORK_NAME_PERIODIC_ALL)
+            .build()
+        Log.d(TAG, "Delete worker: Scheduling period work every $DELETE_WORKER_INTERVAL_MINUTES minutes")
+        workManager!!.enqueueUniquePeriodicWork(DeleteWorker.WORK_NAME_PERIODIC_ALL, workPolicy, work)
+    }
+
+    private fun schedulePeriodicServiceRestartWorker() {
+        val workerVersion = repository.getAutoRestartWorkerVersion()
+        val workPolicy = if (workerVersion == SubscriberService.SERVICE_START_WORKER_VERSION) {
+            Log.d(TAG, "ServiceStartWorker version matches: choosing KEEP as existing work policy")
+            ExistingPeriodicWorkPolicy.KEEP
+        } else {
+            Log.d(TAG, "ServiceStartWorker version DOES NOT MATCH: choosing REPLACE as existing work policy")
+            repository.setAutoRestartWorkerVersion(SubscriberService.SERVICE_START_WORKER_VERSION)
+            ExistingPeriodicWorkPolicy.REPLACE
+        }
+        val work = PeriodicWorkRequestBuilder<SubscriberServiceManager.ServiceStartWorker>(SERVICE_START_WORKER_INTERVAL_MINUTES, TimeUnit.MINUTES)
+            .addTag(SubscriberService.TAG)
+            .addTag(SubscriberService.SERVICE_START_WORKER_WORK_NAME_PERIODIC)
+            .build()
+        Log.d(TAG, "ServiceStartWorker: Scheduling period work every $SERVICE_START_WORKER_INTERVAL_MINUTES minutes")
+        workManager?.enqueueUniquePeriodicWork(SubscriberService.SERVICE_START_WORKER_WORK_NAME_PERIODIC, workPolicy, work)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main_action_bar, menu)
+        this.menu = menu
+        
+        // Tint menu icons based on theme
+        val toolbarTextColor = Colors.toolbarTextColor(this, repository.getDynamicColorsEnabled(), isDarkThemeOn(this))
+        for (i in 0 until menu.size) {
+            menu[i].icon?.setTint(toolbarTextColor)
+        }
+        
+        showHideNotificationMenuItems()
+        showHideConnectionErrorMenuItem(repository.getConnectionDetails())
+        checkSubscriptionsMuted() // This is done here, because then we know that we've initialized the menu
+        return true
+    }
+
+    private fun checkSubscriptionsMuted(delayMillis: Long = 0L) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            delay(delayMillis) // Just to be sure we've initialized all the things, we wait a bit ...
+            Log.d(TAG, "Checking global and subscription-specific 'muted until' timestamp")
+
+            // Check global
+            val changed = repository.checkGlobalMutedUntil()
+            if (changed) {
+                Log.d(TAG, "Global muted until timestamp expired; updating prefs")
+                showHideNotificationMenuItems()
+            }
+
+            // Check subscriptions
+            var rerenderList = false
+            repository.getSubscriptions().forEach { subscription ->
+                val mutedUntilExpired = subscription.mutedUntil > 1L && System.currentTimeMillis()/1000 > subscription.mutedUntil
+                if (mutedUntilExpired) {
+                    Log.d(TAG, "Subscription ${subscription.id}: Muted until timestamp expired, updating subscription")
+                    val newSubscription = subscription.copy(mutedUntil = 0L)
+                    repository.updateSubscription(newSubscription)
+                    rerenderList = true
+                }
+            }
+            if (rerenderList) {
+                mainList.post {
+                    redrawList()
+                }
+            }
+        }
+    }
+
+    private fun showHideNotificationMenuItems() {
+        if (!this::menu.isInitialized) {
+            return
+        }
+        val mutedUntilSeconds = repository.getGlobalMutedUntil()
+        runOnUiThread {
+            // Show/hide menu items based on build config
+            val rateAppItem = menu.findItem(R.id.main_menu_rate)
+            val docsItem = menu.findItem(R.id.main_menu_docs)
+            val reportBugItem = menu.findItem(R.id.main_menu_report_bug)
+            rateAppItem.isVisible = BuildConfig.RATE_APP_AVAILABLE
+            docsItem.isVisible = BuildConfig.PAYMENT_LINKS_AVAILABLE // Google Payments Policy, see https://github.com/binwiederhier/ntfy/issues/1463
+            reportBugItem.isVisible = BuildConfig.PAYMENT_LINKS_AVAILABLE // Google Payments Policy, see https://github.com/binwiederhier/ntfy/issues/1463
+
+            // Pause notification icons
+            val notificationsEnabledItem = menu.findItem(R.id.main_menu_notifications_enabled)
+            val notificationsDisabledUntilItem = menu.findItem(R.id.main_menu_notifications_disabled_until)
+            val notificationsDisabledForeverItem = menu.findItem(R.id.main_menu_notifications_disabled_forever)
+            notificationsEnabledItem?.isVisible = mutedUntilSeconds == 0L
+            notificationsDisabledForeverItem?.isVisible = mutedUntilSeconds == 1L
+            notificationsDisabledUntilItem?.isVisible = mutedUntilSeconds > 1L
+            if (mutedUntilSeconds > 1L) {
+                val formattedDate = formatDateShort(mutedUntilSeconds)
+                notificationsDisabledUntilItem?.title = getString(R.string.main_menu_notifications_disabled_until, formattedDate)
+            }
+        }
+    }
+
+    private fun showHideCreateGroupMenuItem(hasGroups: Boolean) {
+        if (!this::menu.isInitialized) {
+            return
+        }
+        runOnUiThread {
+            menu.findItem(R.id.main_menu_create_group)?.isVisible = hasGroups && actionMode == null
+        }
+    }
+
+    private fun showHideConnectionErrorMenuItem(details: Map<String, io.heckel.ntfy.db.ConnectionDetails>) {
+        if (!this::menu.isInitialized) {
+            return
+        }
+        runOnUiThread {
+            val connectionErrorItem = menu.findItem(R.id.main_menu_connection_error)
+            val hasErrors = details.values.any { it.hasError() }
+            connectionErrorItem?.isVisible = hasErrors
+        }
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.main_menu_create_group -> {
+                onSubscribeButtonClick()
+                true
+            }
+            R.id.main_menu_notifications_enabled -> {
+                onNotificationSettingsClick(enable = false)
+                true
+            }
+            R.id.main_menu_notifications_disabled_forever -> {
+                onNotificationSettingsClick(enable = true)
+                true
+            }
+            R.id.main_menu_notifications_disabled_until -> {
+                onNotificationSettingsClick(enable = true)
+                true
+            }
+            R.id.main_menu_connection_error -> {
+                onConnectionErrorClick()
+                true
+            }
+            R.id.main_menu_settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            }
+            R.id.main_menu_logout -> {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.logout_title)
+                    .setMessage(R.string.logout_confirm)
+                    .setNegativeButton(R.string.main_action_mode_delete_dialog_cancel, null)
+                    .setPositiveButton(R.string.logout_action) { _, _ ->
+                        io.heckel.ntfy.app.AppSession.goLogin(this)
+                    }
+                    .show()
+                true
+            }
+            R.id.main_menu_report_bug -> {
+                startActivity(
+                    Intent(Intent.ACTION_VIEW, getString(R.string.main_menu_report_bug_url).toUri())
+                )
+                true
+            }
+            R.id.main_menu_rate -> {
+                try {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, "market://details?id=$packageName".toUri())
+                    )
+                } catch (_: ActivityNotFoundException) {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$packageName".toUri())
+                    )
+                }
+                true
+            }
+            R.id.main_menu_docs -> {
+                startActivity(
+                    Intent(Intent.ACTION_VIEW, getString(R.string.main_menu_docs_url).toUri())
+                )
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun onNotificationSettingsClick(enable: Boolean) {
+        if (!enable) {
+            Log.d(TAG, "Showing global notification settings dialog")
+            val notificationFragment = NotificationFragment()
+            notificationFragment.show(supportFragmentManager, NotificationFragment.TAG)
+        } else {
+            Log.d(TAG, "Re-enabling global notifications")
+            onNotificationMutedUntilChanged(Repository.MUTED_UNTIL_SHOW_ALL)
+        }
+    }
+
+    private fun onConnectionErrorClick() {
+        Log.d(TAG, "Showing connection error dialog")
+        val connectionErrorFragment = ConnectionErrorFragment.newInstance()
+        connectionErrorFragment.show(supportFragmentManager, ConnectionErrorFragment.TAG)
+    }
+
+    override fun onNotificationMutedUntilChanged(mutedUntilTimestamp: Long) {
+        repository.setGlobalMutedUntil(mutedUntilTimestamp)
+        showHideNotificationMenuItems()
+        runOnUiThread {
+            redrawList() // Update the "muted until" icons
+            when (mutedUntilTimestamp) {
+                0L -> Toast.makeText(this@MainActivity, getString(R.string.notification_dialog_enabled_toast_message), Toast.LENGTH_LONG).show()
+                1L -> Toast.makeText(this@MainActivity, getString(R.string.notification_dialog_muted_forever_toast_message), Toast.LENGTH_LONG).show()
+                else -> {
+                    val formattedDate = formatDateShort(mutedUntilTimestamp)
+                    Toast.makeText(this@MainActivity, getString(R.string.notification_dialog_muted_until_toast_message, formattedDate), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun onSubscribeButtonClick() {
+        val newFragment = AddFragment()
+        newFragment.show(supportFragmentManager, AddFragment.TAG)
+    }
+
+    override fun onSubscribe(topic: String, baseUrl: String, instant: Boolean, displayName: String?, groupId: String?) {
+        Log.d(TAG, "Adding subscription ${topicShortUrl(baseUrl, topic)} (instant = $instant, group=$groupId)")
+
+        // Persist group id for bot management
+        if (!groupId.isNullOrEmpty()) {
+            getSharedPreferences(PREFS_GROUPS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(groupPrefKey(baseUrl, topic), groupId)
+                .apply()
+        }
+
+        // Add subscription to database
+        val subscription = Subscription(
+            id = randomSubscriptionId(),
+            baseUrl = baseUrl,
+            topic = topic,
+            instant = instant,
+            dedicatedChannels = false,
+            mutedUntil = 0,
+            minPriority = Repository.MIN_PRIORITY_USE_GLOBAL,
+            autoDelete = Repository.AUTO_DELETE_USE_GLOBAL,
+            insistent = Repository.INSISTENT_MAX_PRIORITY_USE_GLOBAL,
+            lastNotificationId = null,
+            icon = null,
+            upAppId = null,
+            upConnectorToken = null,
+            displayName = displayName,
+            totalCount = 0,
+            newCount = 0,
+            lastActive = Date().time/1000
+        )
+        viewModel.add(subscription)
+
+        // Subscribe to Firebase topic if ntfy.sh (even if instant, just to be sure!)
+        if (baseUrl == appBaseUrl) {
+            Log.d(TAG, "Subscribing to Firebase topic $topic")
+            messenger.subscribe(topic)
+        }
+
+        // Fetch cached messages
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val notifications = poller.poll(subscription)
+                notifications.forEach { notification ->
+                    if (notification.icon != null) {
+                        DownloadManager.enqueue(this@MainActivity, notification.id, userAction = false, DownloadType.ICON)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Unable to fetch notifications: ${e.message}", e)
+            }
+        }
+
+        // Switch to detail view after adding it
+        onSubscriptionItemClick(subscription)
+    }
+
+    private fun onSubscriptionItemClick(subscription: Subscription) {
+        if (actionMode != null) {
+            handleActionModeClick(subscription)
+        } else if (subscription.upAppId != null) { // UnifiedPush
+            startDetailSettingsView(subscription)
+        } else {
+            startDetailView(subscription)
+        }
+    }
+
+    private fun onSubscriptionItemLongClick(subscription: Subscription) {
+        if (actionMode == null) {
+            beginActionMode(subscription)
+        }
+    }
+
+    private fun refreshAllSubscriptions() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            Log.d(TAG, "Polling for new notifications")
+            var errors = 0
+            var errorMessage = "" // First error
+            var newNotificationsCount = 0
+            repository.getSubscriptions().forEach { subscription ->
+                Log.d(TAG, "Polling subscription: $subscription")
+                try {
+                    val newNotifications = poller.poll(subscription)
+                    newNotificationsCount += newNotifications.size
+                    newNotifications.forEach { notification ->
+                        dispatcher?.dispatch(subscription, notification)
+                    }
+                } catch (e: Exception) {
+                    val topic = displayName(appBaseUrl, subscription)
+                    if (errorMessage == "") errorMessage = "$topic: ${e.message}"
+                    errors++
+                }
+            }
+            val toastMessage = if (errors > 0) {
+                getString(R.string.refresh_message_error, errors, errorMessage)
+            } else if (newNotificationsCount == 0) {
+                getString(R.string.refresh_message_no_results)
+            } else {
+                getString(R.string.refresh_message_result, newNotificationsCount)
+            }
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, toastMessage, Toast.LENGTH_LONG).show()
+                mainListContainer.isRefreshing = false
+            }
+            Log.d(TAG, "Finished polling for new notifications")
+        }
+    }
+
+    private fun startDetailView(subscription: Subscription) {
+        Log.d(TAG, "Entering detail view for subscription $subscription")
+
+        val intent = Intent(this, DetailActivity::class.java)
+        intent.putExtra(EXTRA_SUBSCRIPTION_ID, subscription.id)
+        intent.putExtra(EXTRA_SUBSCRIPTION_BASE_URL, subscription.baseUrl)
+        intent.putExtra(EXTRA_SUBSCRIPTION_TOPIC, subscription.topic)
+        intent.putExtra(EXTRA_SUBSCRIPTION_DISPLAY_NAME, displayName(appBaseUrl, subscription))
+        intent.putExtra(EXTRA_SUBSCRIPTION_INSTANT, subscription.instant)
+        intent.putExtra(EXTRA_SUBSCRIPTION_MUTED_UNTIL, subscription.mutedUntil)
+        startActivity(intent)
+    }
+
+    private fun startDetailSettingsView(subscription: Subscription) {
+        Log.d(TAG, "Opening subscription settings for ${topicShortUrl(subscription.baseUrl, subscription.topic)}")
+
+        val intent = Intent(this, DetailSettingsActivity::class.java)
+        intent.putExtra(DetailActivity.EXTRA_SUBSCRIPTION_ID, subscription.id)
+        intent.putExtra(DetailActivity.EXTRA_SUBSCRIPTION_BASE_URL, subscription.baseUrl)
+        intent.putExtra(DetailActivity.EXTRA_SUBSCRIPTION_TOPIC, subscription.topic)
+        intent.putExtra(DetailActivity.EXTRA_SUBSCRIPTION_DISPLAY_NAME, displayName(appBaseUrl, subscription))
+        startActivity(intent)
+    }
+
+    private fun handleActionModeClick(subscription: Subscription) {
+        adapter.toggleSelection(subscription.id)
+        if (adapter.selected.isEmpty()) {
+            finishActionMode()
+        } else {
+            actionMode!!.title = adapter.selected.size.toString()
+        }
+    }
+
+    private fun onMultiDeleteClick() {
+        Log.d(DetailActivity.TAG, "Showing multi-delete dialog for selected items")
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.main_action_mode_delete_dialog_message)
+            .setPositiveButton(R.string.main_action_mode_delete_dialog_permanently_delete) { _, _ ->
+                adapter.selected.map { subscriptionId -> viewModel.remove(this, subscriptionId) }
+                finishActionMode()
+            }
+            .setNegativeButton(R.string.main_action_mode_delete_dialog_cancel) { _, _ ->
+                finishActionMode()
+            }
+            .create()
+        dialog.setOnShowListener {
+            dialog
+                .getButton(AlertDialog.BUTTON_POSITIVE)
+                .dangerButton()
+        }
+        dialog.show()
+    }
+
+    private fun beginActionMode(subscription: Subscription) {
+        actionMode = startSupportActionMode(actionModeCallback)
+        adapter.toggleSelection(subscription.id)
+        showHideCreateGroupMenuItem(false)
+    }
+
+    private fun finishActionMode() {
+        actionMode!!.finish()
+        endActionModeAndRedraw()
+    }
+
+    private fun endActionModeAndRedraw() {
+        actionMode = null
+        adapter.selected.clear()
+        redrawList()
+        showHideCreateGroupMenuItem(adapter.currentList.isNotEmpty())
+    }
+
+    private fun redrawList() {
+        if (!this::mainList.isInitialized) {
+            return
+        }
+        adapter.notifyItemRangeChanged(0, adapter.currentList.size)
+    }
+
+    // FIXME 2026-05-04: Remove this migration after 1 month
+    private fun migrateSubscriptionIconsFromCache() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            delay(5_000) // 5 seconds
+            try {
+                val oldDir = File(cacheDir, SUBSCRIPTION_ICONS)
+                if (!oldDir.exists() || !oldDir.isDirectory) return@launch
+                val newDir = File(filesDir, SUBSCRIPTION_ICONS)
+                if (!newDir.exists()) newDir.mkdirs()
+                oldDir.listFiles()?.forEach { oldFile ->
+                    val newFile = File(newDir, oldFile.name)
+                    if (newFile.exists()) {
+                        oldFile.delete()
+                        return@forEach
+                    }
+                    if (oldFile.renameTo(newFile)) {
+                        val subscriptionId = oldFile.name.toLongOrNull() ?: return@forEach
+                        val newUri = FileProvider.getUriForFile(
+                            this@MainActivity,
+                            BuildConfig.APPLICATION_ID + ".provider",
+                            newFile
+                        )
+                        repository.updateSubscriptionIcon(subscriptionId, newUri.toString())
+                    }
+                }
+                oldDir.delete()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to migrate subscription icons", e)
+            }
+        }
+    }
+
+    companion object {
+        const val TAG = "NtfyMainActivity"
+        const val EXTRA_SUBSCRIPTION_ID = "subscriptionId"
+        const val EXTRA_SUBSCRIPTION_BASE_URL = "subscriptionBaseUrl"
+        const val EXTRA_SUBSCRIPTION_TOPIC = "subscriptionTopic"
+        const val EXTRA_SUBSCRIPTION_DISPLAY_NAME = "subscriptionDisplayName"
+        const val EXTRA_SUBSCRIPTION_INSTANT = "subscriptionInstant"
+        const val EXTRA_SUBSCRIPTION_MUTED_UNTIL = "subscriptionMutedUntil"
+        const val ONE_DAY_MILLIS = 86400000L
+        const val PREFS_GROUPS = "ntfy_groups"
+
+        fun groupPrefKey(baseUrl: String, topic: String) = "$baseUrl|$topic"
+
+        // As per documentation: The minimum repeat interval that can be defined is 15 minutes
+        // (same as the JobScheduler API), but in practice 15 doesn't work. Using 16 here.
+        // Thanks to varunon9 (https://gist.github.com/varunon9/f2beec0a743c96708eb0ef971a9ff9cd) for this!
+
+        const val POLL_WORKER_INTERVAL_MINUTES = 60L
+        const val DELETE_WORKER_INTERVAL_MINUTES = 8 * 60L
+        const val SERVICE_START_WORKER_INTERVAL_MINUTES = 3 * 60L
+    }
+}

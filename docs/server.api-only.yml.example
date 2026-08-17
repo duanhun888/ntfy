@@ -1,0 +1,8 @@
+# Example server.yml fragment for API-only (frontends deployed separately).
+# See docs/deploy-frontends.md
+
+base-url: "https://api.example.com"
+listen-http: "127.0.0.1:2586"
+web-root: disable
+enable-login: true
+# access-control-allow-origin: "*"   # default; tighten later if needed

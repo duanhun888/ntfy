@@ -1,0 +1,83 @@
+package io.heckel.ntfy.up
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import io.heckel.ntfy.util.Log
+
+/**
+ * This is the UnifiedPush distributor, an amalgamation of messages to be sent as part of the spec.
+ * See https://unifiedpush.org/spec/android/ for details.
+ */
+class Distributor(val context: Context) {
+    fun sendMessage(app: String, connectorToken: String, message: ByteArray) {
+        Log.d(TAG, "Sending MESSAGE to $app (token=$connectorToken): ${message.size} bytes")
+        RaiseAppToForegroundFactory
+            .getInstance(context, app)
+            .raiseAndSend(connectorToken, message)
+    }
+
+    fun sendEndpoint(app: String, connectorToken: String, endpoint: String) {
+        Log.d(TAG, "Sending NEW_ENDPOINT to $app (token=$connectorToken): $endpoint")
+        val broadcastIntent = Intent()
+        broadcastIntent.`package` = app
+        broadcastIntent.action = ACTION_NEW_ENDPOINT
+        broadcastIntent.putExtra(EXTRA_TOKEN, connectorToken)
+        broadcastIntent.putExtra(EXTRA_ENDPOINT, endpoint)
+        context.sendBroadcast(broadcastIntent)
+    }
+
+    fun sendUnregistered(app: String, connectorToken: String) {
+        Log.d(TAG, "Sending UNREGISTERED to $app (token=$connectorToken)")
+        val broadcastIntent = Intent()
+        broadcastIntent.`package` = app
+        broadcastIntent.action = ACTION_UNREGISTERED
+        broadcastIntent.putExtra(EXTRA_TOKEN, connectorToken)
+        context.sendBroadcast(broadcastIntent)
+    }
+
+    fun sendRegistrationFailed(app: String, connectorToken: String, reason: FailedReason) {
+        Log.d(TAG, "Sending REGISTRATION_FAILED to $app (token=$connectorToken)")
+        val broadcastIntent = Intent()
+        broadcastIntent.`package` = app
+        broadcastIntent.action = ACTION_REGISTRATION_FAILED
+        broadcastIntent.putExtra(EXTRA_TOKEN, connectorToken)
+        broadcastIntent.putExtra(EXTRA_FAILED_REASON, reason.name)
+        context.sendBroadcast(broadcastIntent)
+    }
+
+    fun disableComponents() {
+        context.packageManager.run {
+            disable(ComponentName(context.packageName, LinkActivity::class.java.canonicalName!!))
+            disable(ComponentName(context.packageName, BroadcastReceiver::class.java.canonicalName!!))
+        }
+    }
+
+    fun enableComponents() {
+        context.packageManager.run {
+            enable(ComponentName(context.packageName, LinkActivity::class.java.canonicalName!!))
+            enable(ComponentName(context.packageName, BroadcastReceiver::class.java.canonicalName!!))
+        }
+    }
+
+    private fun PackageManager.disable(component: ComponentName) {
+        setComponentEnabledSetting(
+            component,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP
+        )
+    }
+
+    private fun PackageManager.enable(component: ComponentName) {
+        setComponentEnabledSetting(
+            component,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP
+        )
+    }
+
+    companion object {
+        private const val TAG = "NtfyUpDistributor"
+    }
+}

@@ -1,0 +1,291 @@
+import UIKit
+import SafariServices
+import UserNotifications
+import Firebase
+import FirebaseCore
+import FirebaseMessaging
+import CoreData
+
+class AppDelegate: UIResponder, UIApplicationDelegate, ObservableObject {
+    private let tag = "AppDelegate"
+    private let pollTopic = "~poll" // See ntfy server if ever changed
+    
+    // Implements navigation from notifications, see https://stackoverflow.com/a/70731861/1440785
+    @Published var selectedBaseUrl: String? = nil
+    @Published private(set) var criticalAlertSetting: UNNotificationSetting = .notSupported
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        Log.d(tag, "Launching AppDelegate")
+
+        FirebaseApp.configure()
+        FirebaseConfiguration.shared.setLoggerLevel(.max)
+
+        // Register app permissions for push notifications
+        UNUserNotificationCenter.current().delegate = self
+        Messaging.messaging().delegate = self
+        requestStandardNotificationAuthorization()
+        refreshNotificationSettings()
+        
+        // Register too receive remote notifications
+        application.registerForRemoteNotifications()
+                
+        return true
+    }
+
+    func refreshNotificationSettings(completion: (() -> Void)? = nil) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let isAuthorized = settings.criticalAlertSetting == .enabled
+            DispatchQueue.main.async {
+                self.criticalAlertSetting = settings.criticalAlertSetting
+                Store.saveCriticalAlertsAuthorized(isAuthorized)
+                completion?()
+            }
+        }
+    }
+
+    func requestCriticalAlertsAuthorization(completion: @escaping (Bool) -> Void) {
+        if criticalAlertSetting == .enabled {
+            completion(true)
+            return
+        }
+
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound, .criticalAlert]) { success, error in
+            if let error {
+                Log.e(self.tag, "Failed to register for critical alerts", error)
+            } else if success {
+                Log.d(self.tag, "Successfully requested critical alerts")
+            }
+
+            self.refreshNotificationSettings {
+                completion(self.criticalAlertSetting == .enabled)
+            }
+        }
+    }
+
+    // TODO: Needs to be tested on multiple devices/iOS versions
+    func openNotificationSettings() {
+        let settingsURLString: String
+        #if targetEnvironment(simulator)
+        settingsURLString = UIApplication.openSettingsURLString
+        #else
+        if #available(iOS 16.0, *) {
+            settingsURLString = UIApplication.openNotificationSettingsURLString
+        } else if #available(iOS 15.4, *) {
+            settingsURLString = UIApplicationOpenNotificationSettingsURLString
+        } else {
+            settingsURLString = UIApplication.openSettingsURLString
+        }
+        #endif
+        guard let url = URL(string: settingsURLString) else {
+            return
+        }
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+
+    private func requestStandardNotificationAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { success, error in
+            guard success else {
+                Log.e(self.tag, "Failed to register for local push notifications", error)
+                return
+            }
+            Log.d(self.tag, "Successfully registered for local push notifications")
+        }
+    }
+    
+    /// Executed when a background notification arrives on the "~poll" topic. This is used to trigger polling of local topics.
+    /// See https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/pushing_background_updates_to_your_app
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        Log.d(tag, "Background notification received", userInfo)
+        
+        // Exit out early if this message is not expected
+        let topic = userInfo["topic"] as? String ?? ""
+        if topic != pollTopic {
+            completionHandler(.noData)
+            return
+        }
+
+        // Poll and show new messages as notifications
+        let store = Store.shared
+        let subscriptionManager = SubscriptionManager(store: store)
+        let subscriptions = store.getSubscriptions() ?? []
+        guard !subscriptions.isEmpty else {
+            completionHandler(.noData)
+            return
+        }
+
+        let group = DispatchGroup()
+        let resultQueue = DispatchQueue(label: "io.heckel.ntfy.background-poll-result")
+        var didReceiveNewData = false
+        subscriptions.forEach { subscription in
+            group.enter()
+            guard let baseUrl = subscription.baseUrl else {
+                Log.w(tag, "Skipping background poll notification for subscription with missing baseUrl")
+                group.leave()
+                return
+            }
+            subscriptionManager.poll(subscription) { messages in
+                if !messages.isEmpty {
+                    resultQueue.sync {
+                        didReceiveNewData = true
+                    }
+                }
+                self.showNotificationsSequentially(baseUrl: baseUrl, messages: messages) {
+                    group.leave()
+                }
+            }
+        }
+        group.notify(queue: .main) {
+            completionHandler(didReceiveNewData ? .newData : .noData)
+        }
+    }
+    
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = deviceToken.map { data in String(format: "%02.2hhx", data) }.joined()
+        Messaging.messaging().apnsToken = deviceToken
+        Log.d(tag, "Registered for remote notifications. Passing APNs token \(token.prefix(12))... to Firebase")
+    }
+    
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        Log.e(tag, "Failed to register for remote notifications", error)
+    }
+    
+    /// Create a local notification manually (as opposed to a remote notification being generated by Firebase). We need to make the
+    /// local notification look exactly like the remote one (same userInfo), so that when we tap it, the userNotificationCenter(didReceive) function
+    /// has the same information available.
+    private func showNotification(_ subscription: Subscription, _ message: Message, completionHandler: (() -> Void)? = nil) {
+        guard let baseUrl = subscription.baseUrl else {
+            Log.w(tag, "Skipping notification for subscription with missing baseUrl")
+            completionHandler?()
+            return
+        }
+        showNotification(baseUrl: baseUrl, message, completionHandler: completionHandler)
+    }
+
+    private func showNotification(baseUrl: String, _ message: Message, completionHandler: (() -> Void)? = nil) {
+        let priority = (message.priority != nil && message.priority != 0) ? message.priority! : 3
+        if NotificationPolicy.shouldSuppressDisplay(store: Store.shared, baseUrl: baseUrl, topic: message.topic, priority: priority) {
+            Log.d(tag, "Suppressing local notification for muted/low-priority message \(message.id)")
+            completionHandler?()
+            return
+        }
+        let user = Store.shared.getUser(baseUrl: baseUrl)?.toBasicUser()
+        let content = UNMutableNotificationContent()
+        content.modify(message: message, baseUrl: baseUrl)
+        content.attachImageIfNeeded(message: message, user: user) {
+            let request = UNNotificationRequest(identifier: message.id, content: content, trigger: nil /* now */)
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    Log.e(self.tag, "Unable to create notification", error)
+                }
+                completionHandler?()
+            }
+        }
+    }
+
+    private func showNotificationsSequentially(baseUrl: String, messages: [Message], completionHandler: @escaping () -> Void) {
+        guard let firstMessage = messages.first else {
+            completionHandler()
+            return
+        }
+
+        showNotification(baseUrl: baseUrl, firstMessage) {
+            self.showNotificationsSequentially(
+                baseUrl: baseUrl,
+                messages: Array(messages.dropFirst()),
+                completionHandler: completionHandler
+            )
+        }
+    }
+}
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    /// Executed when the app is in the foreground. Nothing has to be done here, except call the completionHandler.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let userInfo = notification.request.content.userInfo
+        Log.d(tag, "Notification received via userNotificationCenter(willPresent)", userInfo)
+        if userInfo["ntfy_suppressed"] as? Bool == true {
+            completionHandler([])
+            return
+        }
+        if let message = Message.from(userInfo: userInfo) {
+            let baseUrl = userInfo["base_url"] as? String ?? Config.appBaseUrl
+            let priority = (message.priority != nil && message.priority != 0) ? message.priority! : 3
+            if NotificationPolicy.shouldSuppressDisplay(store: Store.shared, baseUrl: baseUrl, topic: message.topic, priority: priority) {
+                completionHandler([])
+                return
+            }
+        }
+        completionHandler([[.banner, .sound]])
+    }
+    
+    /// Executed when the user clicks on the notification.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        Log.d(tag, "Notification received via userNotificationCenter(didReceive)", userInfo)
+        guard let message = Message.from(userInfo: userInfo) else {
+            Log.w(tag, "Cannot convert userInfo to message", userInfo)
+            completionHandler()
+            return
+        }
+        
+        let baseUrl = userInfo["base_url"] as? String ?? Config.appBaseUrl
+        let action = message.actions?.first { $0.id == response.actionIdentifier }
+        
+        // Show current topic
+        if message.topic != "" {
+            selectedBaseUrl = topicUrl(baseUrl: baseUrl, topic: message.topic)
+        }
+        
+        // Execute user action or click action (if any)
+        if let action = action {
+            ActionExecutor.execute(action)
+        } else if let click = message.click, click != "", let url = URL(string: click) {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+    
+        completionHandler()
+    }
+}
+
+extension AppDelegate: MessagingDelegate {
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        if let fcmToken = fcmToken, !fcmToken.isEmpty {
+            Log.d(tag, "Firebase token received: \(fcmToken.prefix(12))...")
+        } else {
+            Log.w(tag, "Firebase token missing")
+        }
+        
+        // Subscribe to ~poll topic
+        Messaging.messaging().subscribe(toTopic: pollTopic) { error in
+            if let error {
+                Log.e(self.tag, "Firebase subscribe failed for \(self.pollTopic)", error)
+            } else {
+                Log.d(self.tag, "Firebase subscribe succeeded for \(self.pollTopic)")
+            }
+        }
+        
+        // Re-subscribe to Firebase for all topics
+        let store = Store.shared
+        store.getSubscriptions()?.forEach{ subscription in
+            if let baseUrl = subscription.baseUrl, let topic = subscription.topic {
+                let firebaseTopicName = firebaseTopic(baseUrl: baseUrl, topic: topic)
+                Log.d(tag, "Re-subscribing to topic \(baseUrl)/\(topic)")
+                Messaging.messaging().subscribe(toTopic: firebaseTopicName) { error in
+                    if let error {
+                        Log.e(self.tag, "Firebase subscribe failed for \(firebaseTopicName)", error)
+                    } else {
+                        Log.d(self.tag, "Firebase subscribe succeeded for \(firebaseTopicName)")
+                    }
+                }
+            }
+        }
+    }
+}

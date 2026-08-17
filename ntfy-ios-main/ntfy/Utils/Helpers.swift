@@ -1,0 +1,71 @@
+import Foundation
+import CryptoKit
+
+func topicUrl(baseUrl: String, topic: String) -> String {
+    return "\(normalizeBaseUrl(baseUrl))/\(topic)"
+}
+
+func topicShortUrl(baseUrl: String, topic: String) -> String {
+    return shortUrl(url: topicUrl(baseUrl: baseUrl, topic: topic))
+}
+
+func topicAuthUrl(baseUrl: String, topic: String) -> String {
+    return "\(normalizeBaseUrl(baseUrl))/\(topic)/auth"
+}
+
+func topicHash(baseUrl: String, topic: String) -> String {
+    let data = Data(topicUrl(baseUrl: normalizeBaseUrl(baseUrl), topic: topic).utf8)
+    let digest = SHA256.hash(data: data)
+    return digest.compactMap { String(format: "%02x", $0)}.joined()
+}
+
+func firebaseTopic(baseUrl: String, topic: String) -> String {
+    return normalizeBaseUrl(baseUrl) == normalizeBaseUrl(Config.appBaseUrl)
+        ? topic
+        : topicHash(baseUrl: baseUrl, topic: topic)
+}
+
+func normalizeBaseUrl(_ baseUrl: String) -> String {
+    var normalized = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+    while normalized.hasSuffix("/") {
+        normalized.removeLast()
+    }
+    return normalized
+}
+
+func shortUrl(url: String) -> String {
+    return url
+        .replacingOccurrences(of: "http://", with: "")
+        .replacingOccurrences(of: "https://", with: "")
+}
+
+func formatBytes(_ bytes: Int64) -> String {
+    let formatter = ByteCountFormatter()
+    formatter.countStyle = .file
+    return formatter.string(fromByteCount: bytes)
+}
+
+func parseAllTags(_ tags: String?) -> [String] {
+    return (tags?.components(separatedBy: ",") ?? [])
+        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+}
+
+func parseEmojiTags(_ tags: String?) -> [String] {
+    return parseEmojiTags(parseAllTags(tags))
+}
+
+func parseEmojiTags(_ tags: [String]?) -> [String] {
+    guard let tags = tags else { return [] }
+    var emojiTags: [String] = []
+    for tag in tags {
+        if let emoji = EmojiManager.shared.getEmojiByAlias(alias: tag) {
+            emojiTags.append(emoji.getUnicode())
+        }
+    }
+    return emojiTags
+}
+
+func parseNonEmojiTags(_ tags: String?) -> [String] {
+    return parseAllTags(tags)
+        .filter { EmojiManager.shared.getEmojiByAlias(alias: $0) == nil }
+}

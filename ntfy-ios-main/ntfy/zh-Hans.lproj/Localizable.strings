@@ -1,0 +1,165 @@
+/* Tab bar */
+"tab_groups" = "我的群";
+"tab_notifications" = "通知";
+"tab_settings" = "设置";
+
+/* Common */
+"cancel" = "取消";
+"done" = "完成";
+"save" = "保存";
+"delete" = "删除";
+
+/* Settings */
+"settings_title" = "设置";
+"settings_notifications_header" = "通知";
+"settings_general_header" = "通用";
+"settings_appearance_header" = "外观";
+"settings_about_header" = "关于";
+"settings_about_check_update" = "检查更新";
+"update_dialog_title" = "发现新版本";
+"update_dialog_message" = "当前版本：%@\n新版本：%@\n\n%@";
+"update_now" = "更新";
+"update_later" = "稍后";
+"update_up_to_date" = "已是最新版本";
+"update_check_failed" = "无法检查更新。请配置发布仓库或稍后重试。";
+"update_no_notes" = "暂无更新说明。";
+
+"settings_advanced_header" = "高级";
+"settings_users_header" = "管理用户";
+"settings_users_footer" = "为访问受保护的主题添加或删除账号。同一服务器上的所有主题共用同一账号。";
+"settings_default_server" = "默认服务器";
+"settings_default_server_footer" = "创建群组或订阅时，将使用此默认服务器。";
+"settings_default_server_dialog_footer" = "订阅新主题时将使用此默认服务器。若使用自建服务器，请配置 upstream-base-url，否则可能无法即时推送。";
+
+/* Users / accounts (对齐安卓「管理用户」) */
+"user_add" = "添加用户";
+"user_add_title" = "添加用户";
+"user_edit_title" = "编辑用户";
+"user_delete" = "删除用户";
+"user_username" = "用户名";
+"user_password" = "密码";
+"user_password_edit" = "密码（留空不变）";
+"user_base_url" = "服务器地址，例如 https://sendmsg.xhsnw.com";
+"user_footer_add" = "在此添加服务器账号。该服务器上的所有主题都将使用此账号。";
+"user_footer_edit" = "在此编辑 %@ 的用户名或密码。该服务器上的所有主题共用此账号。密码留空表示不修改。";
+"user_empty_tip" = "提示：添加服务器账号后，即可创建群并访问受保护主题。";
+"user_login_required_title" = "需要登录";
+"user_login_required_footer" = "此主题需要用户名和密码。账号将保存在本机，并用于该服务器上的其他主题。";
+"groups_api_unauthorized" = "需要登录。请先在「设置 → 管理用户」中为该服务器添加账号。";
+"groups_api_bad_url" = "服务器地址无效";
+"groups_api_http" = "服务器响应异常 %d";
+"settings_mute" = "静音通知";
+"settings_min_priority" = "最低优先级";
+"settings_auto_delete" = "自动删除";
+"settings_dark_mode" = "深色模式";
+"settings_language" = "语言";
+"settings_backup" = "备份与恢复";
+"settings_backup_export" = "导出备份";
+"settings_backup_import" = "恢复备份";
+"settings_backup_export_ok" = "备份已导出";
+"settings_backup_import_ok" = "备份已恢复";
+"settings_backup_invalid" = "无效的备份文件";
+"settings_custom_headers" = "自定义请求头";
+"settings_custom_headers_footer" = "发布与轮询请求将附带这些额外 HTTP 头。";
+"settings_custom_headers_add" = "添加请求头";
+"settings_logs" = "日志";
+"settings_logs_record" = "记录日志";
+"settings_logs_export" = "导出日志";
+"settings_logs_clear" = "清除日志";
+"settings_connection_alert" = "连接告警";
+"settings_display_name" = "显示名称";
+"subscription_settings" = "主题设置";
+
+"mute_show_all" = "全部显示";
+"mute_30m" = "30 分钟";
+"mute_1h" = "1 小时";
+"mute_2h" = "2 小时";
+"mute_8h" = "8 小时";
+"mute_tomorrow" = "直到明天";
+"mute_forever" = "永久";
+"mute_until_format" = "静音至 %@";
+
+"priority_use_global" = "与全局设置相同";
+"priority_any" = "任意优先级";
+"priority_low_plus" = "低及以上";
+"priority_default_plus" = "默认及以上";
+"priority_high_plus" = "高及以上";
+"priority_max_only" = "仅最高优先级";
+"priority_min" = "最低";
+"priority_low" = "低";
+"priority_default" = "默认";
+"priority_high" = "高";
+"priority_max" = "最高";
+
+"auto_delete_use_global" = "与全局设置相同";
+"auto_delete_never" = "从不";
+"auto_delete_1d" = "1 天后";
+"auto_delete_3d" = "3 天后";
+"auto_delete_1w" = "1 周后";
+"auto_delete_1m" = "1 个月后";
+"auto_delete_3m" = "3 个月后";
+
+"dark_mode_system" = "跟随系统";
+"dark_mode_light" = "浅色";
+"dark_mode_dark" = "深色";
+
+"connection_alert_off" = "关闭";
+"connection_alert_3m" = "3 分钟后";
+"connection_alert_10m" = "10 分钟后";
+"connection_alert_1h" = "1 小时后";
+
+/* Publish */
+"publish_title" = "发布";
+"publish_send" = "发送";
+"publish_message" = "消息";
+"publish_chip_title" = "标题";
+"publish_chip_tags" = "标签";
+"publish_chip_priority" = "优先级";
+"publish_chip_markdown" = "Markdown";
+"publish_chip_click" = "点击链接";
+"publish_chip_delay" = "延迟";
+"publish_chip_email" = "邮件";
+"publish_chip_call" = "电话呼叫";
+"publish_chip_attach_url" = "附件 URL";
+"publish_attach_file" = "附加文件";
+"publish_clear_attachment" = "移除附件";
+"publish_title_placeholder" = "标题";
+"publish_tags_placeholder" = "tag1,tag2,warning";
+"publish_delay_placeholder" = "30m、9am、Monday 8am…";
+
+"send_test_notification" = "发送测试通知";
+"clear_all_notifications" = "清除全部通知";
+"unsubscribe" = "取消订阅";
+
+"share_select_topic" = "选择要发布到的主题";
+
+/* Groups (对齐安卓中国风首页) */
+"groups_title" = "我的群";
+"groups_brand" = "群通知";
+"groups_empty_title" = "还没有群";
+"groups_empty_subtitle" = "创建群组、配置机器人 Webhook，即可向全体成员推送告警通知。";
+"groups_steps_header" = "上手指南";
+"groups_step1_title" = "创建群";
+"groups_step1_body" = "点击下方按钮，填写群名称。";
+"groups_step2_title" = "进入机器人 / Webhook";
+"groups_step2_body" = "打开群 → 右上角菜单 → 机器人 / Webhook。";
+"groups_step3_title" = "创建机器人";
+"groups_step3_body" = "创建机器人并复制 Webhook 地址。";
+"groups_step4_title" = "发送通知";
+"groups_step4_body" = "向该地址 POST 消息，群成员即可收到通知。";
+"groups_create_action" = "创建群";
+"groups_create_title" = "创建群";
+"groups_create_footer" = "请先在「设置 → 管理用户」中为该服务器添加账号。";
+"groups_name_placeholder" = "群名称";
+"groups_tip_account" = "提示：请先在「设置 → 管理用户」中添加服务器账号。";
+"groups_tip_need_account" = "请先在「设置 → 管理用户」中添加服务器账号，再创建群。";
+"groups_need_account" = "请先添加服务器账号";
+"groups_members_count" = "%d 位成员";
+
+/* Subscribe (账号相关) */
+"subscribe_title" = "添加订阅";
+"subscribe_action" = "订阅";
+"subscribe_topic_placeholder" = "主题名称，例如 alerts";
+"subscribe_topic_footer" = "主题可能不受密码保护，请选择不易被猜到的名称。订阅后即可向该主题 PUT/POST 通知。";
+"subscribe_use_another" = "使用其他服务器";
+"subscribe_another_footer" = "自建服务器若要即时送达，请在服务端配置 upstream-base-url，否则消息可能严重延迟。";

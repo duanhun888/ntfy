@@ -1,0 +1,37 @@
+import Foundation
+
+extension Subscription {
+    func urlString() -> String {
+        return topicUrl(baseUrl: baseUrl ?? "?", topic: topic ?? "?")
+    }
+    
+    func displayName() -> String {
+        if let baseUrl, let topic,
+           let custom = Store.shared.getSubscriptionDisplayName(baseUrl: baseUrl, topic: topic),
+           !custom.isEmpty {
+            return custom
+        }
+        return topicShortUrl(baseUrl: baseUrl ?? "?", topic: topic ?? "?")
+    }
+    
+    func topicName() -> String {
+        return topic ?? "?"
+    }
+    
+    func urlHash() -> String {
+        return topicHash(baseUrl: baseUrl ?? "?", topic: topic ?? "?")
+    }
+    
+    func notificationCount() -> Int {
+        return notifications?.count ?? 0
+    }
+    
+    func lastNotification() -> Notification? {
+        guard let notifications else {
+            return nil
+        }
+        return notifications
+            .sortedArray(using: [NSSortDescriptor(keyPath: \Notification.time, ascending: false)])
+            .first as? Notification
+    }
+}

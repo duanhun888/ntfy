@@ -1,0 +1,56 @@
+# Example: three-domain split (C-end / Ops / API)
+# Replace a.example.com, b.example.com, api.example.com and SSL paths.
+
+upstream ntfy_api {
+  server 127.0.0.1:2586;
+  keepalive 32;
+}
+
+# C-end SPA
+server {
+  listen 443 ssl http2;
+  server_name b.example.com;
+  # ssl_certificate     /etc/ssl/b.example.com/fullchain.pem;
+  # ssl_certificate_key /etc/ssl/b.example.com/privkey.pem;
+
+  root /var/www/ntfy-web;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+
+# Ops SPA
+server {
+  listen 443 ssl http2;
+  server_name a.example.com;
+  # ssl_certificate     /etc/ssl/a.example.com/fullchain.pem;
+  # ssl_certificate_key /etc/ssl/a.example.com/privkey.pem;
+
+  root /var/www/ntfy-ops;
+  index index.html;
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+
+# API only
+server {
+  listen 443 ssl http2;
+  server_name api.example.com;
+  # ssl_certificate     /etc/ssl/api.example.com/fullchain.pem;
+  # ssl_certificate_key /etc/ssl/api.example.com/privkey.pem;
+
+  location / {
+    proxy_pass http://ntfy_api;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+  }
+}

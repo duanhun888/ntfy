@@ -1,0 +1,336 @@
+import SwiftUI
+import UniformTypeIdentifiers
+import UIKit
+
+enum ActiveAlert {
+    case clear, unsubscribe, selected
+}
+
+
+struct NotificationListView: View {
+    private let tag = "NotificationListView"
+    
+    @EnvironmentObject private var delegate: AppDelegate
+    @EnvironmentObject private var store: Store
+    
+    @ObservedObject var subscription: Subscription
+    @ObservedObject var notificationsModel: NotificationsObservable
+    
+    @State private var editMode = EditMode.inactive
+    @State private var selection = Set<Notification>()
+    
+    @State private var showAlert = false
+    @State private var activeAlert: ActiveAlert = .clear
+    @State private var showCopiedConfirmation = false
+    @State private var showPublish = false
+    @State private var showSettings = false
+    
+    private var subscriptionManager: SubscriptionManager {
+        return SubscriptionManager(store: store)
+    }
+    
+    init(subscription: Subscription) {
+        self.subscription = subscription
+        self.notificationsModel = NotificationsObservable(subscriptionID: subscription.objectID)
+    }
+
+    var body: some View {
+        notificationList
+            .refreshable {
+                subscriptionManager.poll(subscription)
+            }
+    }
+    
+    private var notificationList: some View {
+        Group {
+            if editMode == .active {
+                List(selection: $selection) {
+                    notificationRows
+                }
+            } else {
+                List {
+                    notificationRows
+                }
+            }
+        }
+        .listStyle(PlainListStyle())
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.editMode, self.$editMode)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(subscription.displayName())
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if (self.editMode == .active) {
+                    editButton
+                } else {
+                    HStack {
+                        Button {
+                            showPublish = true
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        Menu {
+                            if notificationsModel.notifications.count > 0 {
+                                editButton
+                            }
+                            Button(NSLocalizedString("publish_title", comment: "")) {
+                                showPublish = true
+                            }
+                            Button(NSLocalizedString("send_test_notification", comment: "")) {
+                                self.sendTestNotification()
+                            }
+                            Menu(NSLocalizedString("settings_mute", comment: "")) {
+                                Button(NSLocalizedString("mute_show_all", comment: "")) {
+                                    setMute(0)
+                                }
+                                Button(NSLocalizedString("mute_30m", comment: "")) { setMute(30) }
+                                Button(NSLocalizedString("mute_1h", comment: "")) { setMute(60) }
+                                Button(NSLocalizedString("mute_2h", comment: "")) { setMute(120) }
+                                Button(NSLocalizedString("mute_8h", comment: "")) { setMute(480) }
+                                Button(NSLocalizedString("mute_tomorrow", comment: "")) { setMute(2) }
+                                Button(NSLocalizedString("mute_forever", comment: "")) { setMute(1) }
+                            }
+                            Button(NSLocalizedString("subscription_settings", comment: "")) {
+                                showSettings = true
+                            }
+                            if notificationsModel.notifications.count > 0 {
+                                Button(NSLocalizedString("clear_all_notifications", comment: "")) {
+                                    self.showAlert = true
+                                    self.activeAlert = .clear
+                                }
+                            }
+                            Button(NSLocalizedString("unsubscribe", comment: "")) {
+                                self.showAlert = true
+                                self.activeAlert = .unsubscribe
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .padding([.leading], 8)
+                        }
+                    }
+                }
+            }
+            ToolbarItem(placement: .navigationBarLeading) {
+                if (self.editMode == .active) {
+                    Button(action: {
+                        self.showAlert = true
+                        self.activeAlert = .selected
+                    }) {
+                        Text("Delete")
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+        }
+        .alert(isPresented: $showAlert) {
+            switch activeAlert {
+            case .clear:
+                return Alert(
+                    title: Text("Clear notifications"),
+                    message: Text("Do you really want to delete all of the notifications in this topic?"),
+                    primaryButton: .destructive(
+                        Text("Permanently delete"),
+                        action: deleteAll
+                    ),
+                    secondaryButton: .cancel())
+            case .unsubscribe:
+                return Alert(
+                    title: Text("Unsubscribe"),
+                    message: Text("Do you really want to unsubscribe from this topic and delete all of the notifications you received?"),
+                    primaryButton: .destructive(
+                        Text("Unsubscribe"),
+                        action: unsubscribe
+                    ),
+                    secondaryButton: .cancel())
+            case .selected:
+                return Alert(
+                    title: Text("Delete"),
+                    message: Text("Do you really want to delete these selected notifications?"),
+                    primaryButton: .destructive(
+                        Text("Delete"),
+                        action: deleteSelected
+                    ),
+                    secondaryButton: .cancel())
+            }
+        }
+        .overlay(Group {
+            if notificationsModel.notifications.count == 0 {
+                VStack {
+                    Text("You haven't received any notifications for this topic yet.")
+                        .font(.title2)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.bottom)
+                    
+                    Text("To send notifications to this topic, simply PUT or POST to the topic URL.\n\nExample:\n`$ curl -d \"hi\" ntfy.sh/\(subscription.topicName())`\n\nDetailed instructions are available on [ntfy.sh](https://ntfy.sh) and [in the docs](https://ntfy.sh/docs).")
+                        .foregroundColor(.gray)
+                }
+                .padding(40)
+            }
+        })
+        .overlay(Group {
+            if showCopiedConfirmation {
+                Text("Copied to Clipboard")
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor.cornerRadius(20))
+                    .shadow(radius: 5)
+                    .padding(.bottom, 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        })
+        .onAppear {
+            cancelSubscriptionNotifications()
+            store.deleteExpiredNotifications(for: subscription)
+        }
+        .sheet(isPresented: $showPublish) {
+            PublishView(subscription: subscription)
+                .environmentObject(store)
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationView {
+                SubscriptionSettingsView(subscription: subscription)
+                    .environmentObject(store)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(NSLocalizedString("done", comment: "")) { showSettings = false }
+                        }
+                    }
+            }
+        }
+        .onDisappear {
+            if delegate.selectedBaseUrl == subscription.urlString() {
+                delegate.selectedBaseUrl = nil
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var notificationRows: some View {
+        ForEach(notificationsModel.notifications, id: \.self) { notification in
+            NotificationRowView(
+                notification: notification,
+                onCopyMessage: showCopyConfirmation
+            )
+        }
+    }
+    
+    private var editButton: some View {
+        if editMode == .inactive {
+            return Button(action: {
+                self.editMode = .active
+                self.selection = Set<Notification>()
+            }) {
+                Text("Select messages")
+            }
+        } else {
+            return Button(action: {
+                self.editMode = .inactive
+                self.selection = Set<Notification>()
+            }) {
+                Text("Done")
+            }
+        }
+    }
+    
+    private func setMute(_ picker: Int64) {
+        guard let baseUrl = subscription.baseUrl, let topic = subscription.topic else { return }
+        let resolved = NotificationPolicy.resolveMutedUntilPickerValue(picker)
+        store.setSubscriptionMutedUntil(baseUrl: baseUrl, topic: topic, value: resolved)
+    }
+
+    private func sendTestNotification() {
+        guard let baseUrl = subscription.baseUrl else {
+            Log.w(tag, "Cannot send test notification: subscription base URL is missing")
+            return
+        }
+
+        let possibleTags: Array<String> = ["warning", "skull", "success", "triangular_flag_on_post", "de", "us", "dog", "cat", "rotating_light", "bike", "backup", "rsync", "this-s-a-tag", "ios"]
+        let priority = Int.random(in: 1..<6)
+        let tags = Array(possibleTags.shuffled().prefix(Int.random(in: 0..<4)))
+
+        let user = store.getUser(baseUrl: baseUrl)?.toBasicUser()
+        ApiService.shared.publish(
+            subscription: subscription,
+            user: user,
+            message: "This is a test notification from the ntfy iOS app. It has a priority of \(priority). If you send another one, it may look different.",
+            title: "Test: You can set a title if you like",
+            priority: priority,
+            tags: tags
+        ) {
+            DispatchQueue.main.async {
+                subscriptionManager.poll(subscription)
+            }
+        }
+    }
+    
+    private func unsubscribe() {
+        subscriptionManager.unsubscribe(subscription)
+        delegate.selectedBaseUrl = nil
+    }
+    
+    private func deleteAll() {
+        store.delete(allNotificationsFor: subscription)
+    }
+    
+    private func deleteSelected() {
+        store.delete(notifications: selection)
+        selection = Set<Notification>()
+        editMode = .inactive
+    }
+    
+    private func cancelSubscriptionNotifications() {
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.getDeliveredNotifications { notifications in
+            let ids = notifications
+                .filter { notification in
+                    let userInfo = notification.request.content.userInfo
+                    if let baseUrl = userInfo["base_url"] as? String, let topic = userInfo["topic"] as? String {
+                        return baseUrl == subscription.baseUrl && topic == subscription.topic
+                    }
+                    return false
+                }
+                .map { notification in
+                    notification.request.identifier
+                }
+            if !ids.isEmpty {
+                Log.d(tag, "Cancelling \(ids.count) notification(s) from notification center")
+                notificationCenter.removeDeliveredNotifications(withIdentifiers: ids)
+            }
+        }
+    }
+    
+    private func showCopyConfirmation() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showCopiedConfirmation = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showCopiedConfirmation = false
+            }
+        }
+    }
+    
+}
+
+struct NotificationListView_Previews: PreviewProvider {
+    static var previews: some View {
+        let store = Store.preview
+        Group {
+            let subscriptionWithNotifications = store.makeSubscription(store.context, "stats", Store.sampleMessages["stats"]!)
+            let subscriptionWithoutNotifications = store.makeSubscription(store.context, "announcements", Store.sampleMessages["announcements"]!)
+            NotificationListView(subscription: subscriptionWithNotifications)
+                .environment(\.managedObjectContext, store.context)
+                .environmentObject(store)
+            NotificationListView(subscription: subscriptionWithoutNotifications)
+                .environment(\.managedObjectContext, store.context)
+                .environmentObject(store)
+        }
+    }
+}
