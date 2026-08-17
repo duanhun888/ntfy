@@ -259,9 +259,8 @@ func TestServer_StaticSites(t *testing.T) {
 		require.Contains(t, rr.Body.String(), `<meta name="robots" content="noindex, nofollow" />`)
 
 		rr = request(t, s, "GET", "/docs", "", nil)
-		require.Equal(t, 301, rr.Code)
-
-		// Docs test removed, it was failing annoyingly.
+		require.Equal(t, 302, rr.Code)
+		require.Equal(t, "/help", rr.Header().Get("Location"))
 	})
 }
 
@@ -3139,10 +3138,10 @@ func TestServer_SubscriberRateLimiting_NotWrongTopic(t *testing.T) {
 		subscriberFn := func(r *http.Request) {
 			r.RemoteAddr = "1.2.3.4:1234"
 		}
-		rr := request(t, s, "GET", "/alerts,upAAAAAAAAAAAA,upBBBBBBBBBBBB/json?poll=1", "", nil, subscriberFn)
+		rr := request(t, s, "GET", "/news,upAAAAAAAAAAAA,upBBBBBBBBBBBB/json?poll=1", "", nil, subscriberFn)
 		require.Equal(t, 200, rr.Code)
 		require.Equal(t, "", rr.Body.String())
-		require.Nil(t, s.topics["alerts"].rateVisitor)
+		require.Nil(t, s.topics["news"].rateVisitor)
 		require.Equal(t, "1.2.3.4", s.topics["upAAAAAAAAAAAA"].rateVisitor.ip.String())
 		require.Equal(t, "1.2.3.4", s.topics["upBBBBBBBBBBBB"].rateVisitor.ip.String())
 	})
