@@ -34,7 +34,7 @@
     "stylis-plugin-rtl": "^2.1.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-react": "^6.0.5",
     "cross-env": "^10.1.0",
     "eslint": "^8.41.0",
     "eslint-config-airbnb": "^19.0.4",
