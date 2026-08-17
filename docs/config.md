@@ -1728,7 +1728,7 @@ ntfy tier add \
 ## Payments
 ntfy supports paid [tiers](#tiers) via [Stripe](https://stripe.com/) as a payment provider. If payments are enabled,
 users can register, login and switch plans in the web app. The web app will behave slightly differently if payments 
-are enabled (e.g. showing an upgrade banner, or "ntfy Pro" tags).
+are enabled (e.g. showing an upgrade banner, or paid-plan tags).
 
 !!! info
     The ntfy payments integration is very tailored to ntfy.sh and Stripe. I do not intend to support arbitrary use

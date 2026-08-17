@@ -399,9 +399,6 @@ This release adds support for templating in the priority field, a new "copy" act
 a red notification dot on the favicon for unread messages, and an admin-only version endpoint. It also includes several
 crash fixes, web app improvements, and documentation updates.
 
-❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), [Liberapay](https://en.liberapay.com/ntfy/), Bitcoin (`1626wjrw3uWk9adyjCfYwafw4sQWujyjn8`), 
-or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy will always remain open source.
-
 **Features:**
 
 * Server: Support templating in the priority field ([#1426](https://github.com/binwiederhier/ntfy/issues/1426), thanks to [@seantomburke](https://github.com/seantomburke) for reporting)
@@ -499,7 +496,6 @@ support for passing headers to your proxy, an in-app language switcher, and more
 </div>
 
 If you are waiting for a feature, please 👍 the corresponding [GitHub issue](https://github.com/binwiederhier/ntfy/issues?q=is%3Aissue%20state%3Aopen%20sort%3Areactions-%2B1-desc).
-If you like ntfy, please consider purchasing [ntfy Pro](https://ntfy.sh/app) to support us.
 
 **Features:**
 
@@ -619,23 +615,6 @@ This release adds support for [declarative users](config.md#users-via-the-config
 
 It also adds support for [pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support, as well as advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) functions.
 
-❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), [Liberapay](https://en.liberapay.com/ntfy/), Bitcoin (`1626wjrw3uWk9adyjCfYwafw4sQWujyjn8`), or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy
-will always remain open source.
-
-**Features:**
-
-* [Declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config) ([#464](https://github.com/binwiederhier/ntfy/issues/464), [#1384](https://github.com/binwiederhier/ntfy/pull/1384), [#1413](https://github.com/binwiederhier/ntfy/pull/1413), thanks to [pinpox](https://github.com/pinpox) for reporting, to [@wunter8](https://github.com/wunter8) for reviewing and implementing parts of it)
-* [Pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
-* Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
-
-## ntfy server v2.13.0
-Released July 10, 2025
-
-This is a relatively small release, mainly to support IPv6 and to add more sophisticated
-proxy header support. Quick reminder that if you like ntfy, **please consider sponsoring us**
-via [GitHub Sponsors](https://github.com/sponsors/binwiederhier) and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the web app](https://ntfy.sh/app).
-ntfy will always remain open source.
-
 **Features:**
 
 * Full [IPv6 support](config.md#ipv6-support) for ntfy and the official ntfy.sh server ([#519](https://github.com/binwiederhier/ntfy/issues/519)/[#1380](https://github.com/binwiederhier/ntfy/pull/1380)/[ansible#4](https://github.com/binwiederhier/ntfy-ansible/pull/4))
@@ -712,9 +691,6 @@ Released May 13, 2024
 
 This is a tiny release that fixes a database index issue that caused performance issues on ntfy.sh. It also fixes a bug
 in the rate visitor logic that caused rate visitors to be assigned to seemingly random topics. Nothing major this time.
-
-❤️ Quick reminder that if you like ntfy, **please consider sponsoring us** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier)
-and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the web app](https://ntfy.sh/app). ntfy will always remain open source.
 
 **Bug fixes + maintenance:**
 
@@ -843,10 +819,6 @@ On top of that, this release also brings **dark mode** 🧛🌙 to the web app.
 🙏 A huge thanks for this release goes to [@nimbleghost](https://github.com/nimbleghost), for basically implementing the 
 Web Push / PWA and dark mode feature by himself. I'm really grateful for your contributions.
 
-❤️ If you like ntfy, **please consider sponsoring us** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier)
-and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the web app](https://ntfy.sh/app) (20% off
-if you use promo code `MYTOPIC`). ntfy will always remain open source.
-
 **Features:**
 
 * The web app now supports Web Push, and is installable as a [progressive web app (PWA)](https://docs.ntfy.sh/subscribe/pwa/) on Chrome, Edge, Android, and iOS ([#751](https://github.com/binwiederhier/ntfy/pull/751), thanks to [@nimbleghost](https://github.com/nimbleghost))
@@ -883,10 +855,6 @@ This release brings a number of new features, including support for text-to-spee
 an admin API to manage users and ACL (currently in beta, and hence undocumented), and support for authorized access to 
 upstream servers via the `upstream-access-token` config option.
 
-❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier)
-and [Liberapay](https://en.liberapay.com/ntfy/), or by buying a [paid plan via the web app](https://ntfy.sh/app) (20% off
-if you use promo code `MYTOPIC`). ntfy will always remain open source.
-
 **Features:**
 
 * Support for text-to-speech style [phone calls](publish.md#phone-calls) using the `X-Call` header (no ticket)
@@ -907,10 +875,6 @@ Released Apr 26, 2023
 
 This release adds a tiny `v1/stats` endpoint to expose how many messages have been published, and adds support to encode the `X-Title`,
 `X-Message` and `X-Tags` header as RFC 2047. It's a pretty small release, and mainly enables the release of the new ntfy.sh website.
-
-❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier)
-and [Liberapay](https://en.liberapay.com/ntfy/), or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy
-will always remain open source.
 
 **Features:**
 
@@ -969,12 +933,6 @@ visitors and topics. If you'd like more metrics, pop in the Discord/Matrix or fi
 On top of this, you can now use access tokens in the ntfy CLI (defined in the `client.yml` file), fixed a bug in `ntfy subscribe`,
 removed the dependency on Google Fonts, and more.
 
-🔥 Reminder: Purchase one of three **ntfy Pro plans** for **50% off** for a limited time (if you use promo code `MYTOPIC`). 
-ntfy Pro gives you higher rate limits and lets you reserve topic names. [Buy through web app](https://ntfy.sh/app).
-
-❤️ If you don't need ntfy Pro, please consider sponsoring ntfy via [GitHub Sponsors](https://github.com/sponsors/binwiederhier)
-and [Liberapay](https://en.liberapay.com/ntfy/). ntfy will stay open source forever.
-
 **Features:**
 
 * Monitoring: ntfy now exposes a `/metrics` endpoint for [Prometheus](https://prometheus.io/) if [configured](config.md#monitoring) ([#210](https://github.com/binwiederhier/ntfy/issues/210), thanks to [@rogeliodh](https://github.com/rogeliodh) for reporting)
@@ -1018,16 +976,7 @@ a flag to enable [subscriber-based rate limiting](config.md#subscriber-based-rat
 ## ntfy server v2.1.1
 Released March 1, 2023
 
-This is a tiny release with a few bug fixes, but it's big for me personally. After almost three months of work, 
-**today I am finally launching the paid plans on ntfy.sh** 🥳 🎉. 
-
-You are now able to purchase one of three plans that'll give you **higher rate limits** (messages, emails, attachment sizes, ...), 
-as well as the ability to **reserve topic names** for your personal use, while at the same time supporting me and the
-ntfy open source project ❤️. You can check out the pricing, and [purchase plans through the web app](https://ntfy.sh/app) (use
-promo code `MYTOPIC` for a **50% discount**, limited time only).
-
-And as I've said many times: Do not worry. **ntfy will always stay open source**, and that includes all features. There
-are no closed-source features. So if you'd like to run your own server, you can!
+This is a tiny release with a few bug fixes.
 
 **Bug fixes + maintenance:**
 
@@ -1136,12 +1085,6 @@ This is the biggest ntfy server release I've ever done 🥳 . Lots of new and ex
   able to subscribe to tiers with higher rate limits (more daily messages, bigger attachments) and topic reservations.
   Paid tiers are facilitated by integrating [Stripe](https://stripe.com) as a payment provider. See [payments](config.md#payments)
   for details.
-
-**ntfy is forever open source!**   
-Yes, I will be offering some paid plans. But you don't need to panic! I won't be taking any features away, and everything 
-will remain forever open source, so you can self-host if you like. Similar to the donations via [GitHub Sponsors](https://github.com/sponsors/binwiederhier)
-and [Liberapay](https://en.liberapay.com/ntfy/), paid plans will help pay for the service and keep me motivated to keep
-going. It'll only make ntfy better.
 
 **Other tickets:**
 
@@ -1262,7 +1205,7 @@ requests.
 **Other things:**
 
 * Put ntfy.sh docs on GitHub pages to reduce AWS outbound traffic cost ([#491](https://github.com/binwiederhier/ntfy/issues/491))
-* The ntfy.sh server hardware was upgraded to a bigger box. If you'd like to help out carrying the server cost, **[sponsorships and donations](https://github.com/sponsors/binwiederhier)** 💸 would be very much appreciated
+* The ntfy.sh server hardware was upgraded to a bigger box.
 
 ## ntfy server v1.29.0
 Released November 12, 2022
@@ -1272,8 +1215,6 @@ a few bugs in the web app and the CLI and adds lots of new examples and install 
 
 Thanks to [some love on HN](https://news.ycombinator.com/item?id=33517944), we got so many new ntfy users trying out ntfy
 and joining the [chat rooms](https://github.com/binwiederhier/ntfy#chat--forum). **Welcome to the ntfy community to all of you!** 
-We also got a ton of new **[sponsors and donations](https://github.com/sponsors/binwiederhier)** 💸, which is amazing. I'd like to thank
-all of you for believing in the project, and for helping me pay the server cost. The HN spike increased the AWS cost quite a bit.
 
 **Features:**
 
@@ -1306,14 +1247,6 @@ all of you for believing in the project, and for helping me pay the server cost.
 **Additional translations:**
 
 * Korean (thanks to [@YJSofta0f97461d82447ac](https://hosted.weblate.org/user/YJSofta0f97461d82447ac/))
-
-**Sponsorships:**:
-
-Thank you to the amazing folks who decided to [sponsor ntfy](https://github.com/sponsors/binwiederhier). Thank you for 
-helping carry the cost of the public server and developer licenses, and more importantly: Thank you for believing in ntfy! 
-You guys rock! 
-
-A list of all the sponsors can be found in the [README](https://github.com/binwiederhier/ntfy/blob/main/README.md).
 
 ## ntfy Android app v1.14.0 
 Released September 27, 2022
@@ -1352,9 +1285,6 @@ Released September 27, 2022
 This release primarily adds icon support for the Android app, and adds a display name to subscriptions in the web app.
 Aside from that, we fixed a few random bugs, most importantly the `Priority` header bug that allows the use behind
 Cloudflare. We also added a ton of documentation. Most prominently, an [integrations + projects page](https://ntfy.sh/docs/integrations/).
-
-As of now, I also have started accepting **[donations and sponsorships](https://github.com/sponsors/binwiederhier)** 💸. 
-I would be very humbled if you consider donating.
 
 **Features:**
 
