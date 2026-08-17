@@ -55,7 +55,7 @@ const (
 type Friend struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username,omitempty"`
-    Topic    string `json:"topic"` // private DM topic shared by both users
+	Topic    string `json:"topic"` // private DM topic shared by both users
 	Created  int64  `json:"created"`
 }
 
